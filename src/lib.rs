@@ -58,4 +58,34 @@ pub mod jdx {
             }
         }
     }
+
+    impl Header {
+        pub(super) fn from_c(c_header: bindings::JDXHeader) -> Result<Header, String> {
+            if !c_header.error.is_null() {
+                return unsafe { 
+                    Err(c_header.error.as_ref().unwrap().to_string())
+                };
+            }
+
+            Ok(Header {
+                version: c_header.version,
+                color_type: c_header.color_type,
+                image_width: c_header.image_width,
+                image_height: c_header.image_height,
+                item_count: c_header.item_count as usize
+            })
+        }
+
+        pub(super) fn to_c(&self) -> bindings::JDXHeader {
+            bindings::JDXHeader {
+                version: self.version,
+                color_type: self.color_type,
+                image_width: self.image_width,
+                image_height: self.image_height,
+                item_count: self.item_count as i64,
+                compressed_size: -1,
+                error: ptr::null()
+            }
+        }
+    }
 }
