@@ -87,5 +87,13 @@ pub mod jdx {
                 error: ptr::null()
             }
         }
+
+        pub fn from_file(path: &str) -> io::Result<Header> {
+            let c_header = unsafe { bindings::JDX_ReadHeaderFromPath(path.as_ptr()) };
+            let rust_header = Header::from_c(c_header)
+                .map_err(|_| io::Error::last_os_error())?;
+
+            Ok(rust_header)
+        }
     }
 }
