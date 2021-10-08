@@ -7,7 +7,7 @@ pub struct JDXVersion {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum JDXColorType {
     Gray = 1,
     RGB = 3,
