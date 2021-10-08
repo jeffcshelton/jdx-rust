@@ -1,7 +1,8 @@
 mod bindings;
 
 pub mod jdx {
-    use std::{io, ptr};
+    use core::fmt;
+    use std::{io, ptr, error};
     use crate::bindings;
 
     pub type Version = bindings::JDXVersion;
@@ -36,6 +37,22 @@ pub mod jdx {
         pub labels: Vec<Label>,
     }
 
+    #[derive(Debug)]
+    pub enum Error {
+        UnequalDimensions,
+        UnequalColorTypes,
+    }
+
+    impl error::Error for Error {}
+    impl fmt::Display for Error {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match self {
+                Error::UnequalDimensions => write!(f, "Unequal Dimensions"),
+                Error::UnequalColorTypes => write!(f, "Unequal Color Types"),
+            }
+        }
+    }
+
     impl Image {
         pub(super) fn from_c(c_image: bindings::JDXImage) -> Image {
             let image_size = c_image.width as usize * c_image.height as usize * c_image.color_type as usize;
@@ -45,7 +62,7 @@ pub mod jdx {
                 data: boxed_data,
                 width: c_image.width,
                 height: c_image.height,
-                color_type: c_image.color_type
+                color_type: c_image.color_type,
             }
         }
 
@@ -54,7 +71,7 @@ pub mod jdx {
                 data: self.data.as_mut_ptr(),
                 width: self.width,
                 height: self.height,
-                color_type: self.color_type
+                color_type: self.color_type,
             }
         }
     }
@@ -72,7 +89,7 @@ pub mod jdx {
                 color_type: c_header.color_type,
                 image_width: c_header.image_width,
                 image_height: c_header.image_height,
-                item_count: c_header.item_count as usize
+                item_count: c_header.item_count as usize,
             })
         }
 
@@ -84,7 +101,7 @@ pub mod jdx {
                 image_height: self.image_height,
                 item_count: self.item_count as i64,
                 compressed_size: -1,
-                error: ptr::null()
+                error: ptr::null(),
             }
         }
 
@@ -134,7 +151,7 @@ pub mod jdx {
                 header: self.header.to_c(),
                 images: c_images.as_mut_ptr(),
                 labels: self.labels.as_mut_ptr(),
-                error: ptr::null()
+                error: ptr::null(),
             }
         }
 
@@ -144,23 +161,26 @@ pub mod jdx {
                 .map_err(|_| io::Error::last_os_error())?;
 
             unsafe { bindings::JDX_FreeDataset(c_dataset) };
-
             Ok(rust_dataset)
         }
 
         pub fn write_to_file(&mut self, path: &str) -> io::Result<()> {
-            unsafe {
-                bindings::JDX_WriteDatasetToPath(self.to_c(), path.as_ptr());
-            }
-
+            unsafe { bindings::JDX_WriteDatasetToPath(self.to_c(), path.as_ptr()); }
             Ok(())
         }
 
-        pub fn append(&mut self, dset: &Dataset) {
+        pub fn append(&mut self, dset: &Dataset) -> Result<(), Error> {
+            if self.header.image_width != dset.header.image_width || self.header.image_height != dset.header.image_height {
+                return Err(Error::UnequalDimensions);
+            } else if self.header.color_type != dset.header.color_type {
+                return Err(Error::UnequalColorTypes);
+            }
+
             self.images.append(&mut dset.images.clone());
             self.labels.append(&mut dset.labels.clone());
 
             self.header.item_count += dset.header.item_count;
+            Ok(())
         }
     }
 }
