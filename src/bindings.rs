@@ -56,8 +56,5 @@ extern "C" {
     pub fn JDX_ReadDatasetFromPath(path: *const u8) -> JDXDataset;
 
     pub fn JDX_WriteDatasetToPath(dataset: JDXDataset, path: *const u8);
-
-    pub fn JDX_CopyDataset(dataset: JDXDataset) -> JDXDataset;
-    pub fn JDX_AppendDataset(dataset: *mut JDXDataset, src: JDXDataset);
     pub fn JDX_FreeDataset(dataset: JDXDataset);
 }
