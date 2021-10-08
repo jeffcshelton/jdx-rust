@@ -137,5 +137,23 @@ pub mod jdx {
                 error: ptr::null()
             }
         }
+
+        pub fn read_from_file(path: &str) -> io::Result<Dataset> {
+            let c_dataset = unsafe { bindings::JDX_ReadDatasetFromPath(path.as_ptr()) };
+            let rust_dataset = Dataset::from_c(c_dataset)
+                .map_err(|_| io::Error::last_os_error())?;
+
+            unsafe { bindings::JDX_FreeDataset(c_dataset) };
+
+            Ok(rust_dataset)
+        }
+
+        pub fn write_to_file(&mut self, path: &str) -> io::Result<()> {
+            unsafe {
+                bindings::JDX_WriteDatasetToPath(self.to_c(), path.as_ptr());
+            }
+
+            Ok(())
+        }
     }
 }
