@@ -155,5 +155,12 @@ pub mod jdx {
 
             Ok(())
         }
+
+        pub fn append(&mut self, dset: &Dataset) {
+            self.images.append(&mut dset.images.clone());
+            self.labels.append(&mut dset.labels.clone());
+
+            self.header.item_count += dset.header.item_count;
+        }
     }
 }
