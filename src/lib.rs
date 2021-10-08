@@ -96,4 +96,46 @@ pub mod jdx {
             Ok(rust_header)
         }
     }
+
+    impl Dataset {
+        fn from_c(c_dataset: bindings::JDXDataset) -> Result<Dataset, String> {
+            if !c_dataset.error.is_null() {
+                return unsafe {
+                    Err(c_dataset.error.as_ref().unwrap().to_string())
+                };
+            }
+
+            let c_images = unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(c_dataset.images, c_dataset.header.item_count as usize)) };
+            let c_labels = unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(c_dataset.labels, c_dataset.header.item_count as usize)) };
+
+            let r_header = Header::from_c(c_dataset.header)?;
+            let mut r_images = Vec::with_capacity(c_images.len());
+            let mut r_labels = Vec::with_capacity(c_labels.len());
+
+            for i in 0..r_header.item_count {
+                r_images.push(Image::from_c(c_images[i]));
+                r_labels.push(c_labels[i] as Label);
+            }
+
+            Ok(Dataset {
+                header: r_header,
+                images: r_images,
+                labels: r_labels
+            })
+        }
+
+        fn to_c(&mut self) -> bindings::JDXDataset {
+            let mut c_images: Vec<bindings::JDXImage> = self.images
+                .iter_mut()
+                .map(|image| image.to_c())
+                .collect();
+
+            bindings::JDXDataset {
+                header: self.header.to_c(),
+                images: c_images.as_mut_ptr(),
+                labels: self.labels.as_mut_ptr(),
+                error: ptr::null()
+            }
+        }
+    }
 }
