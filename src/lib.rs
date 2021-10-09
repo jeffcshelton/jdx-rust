@@ -43,6 +43,12 @@ pub mod jdx {
         UnequalColorTypes,
     }
 
+    impl Version {
+        pub fn current() -> Self {
+            unsafe { bindings::JDX_Version }
+        }
+    }
+
     impl error::Error for Error {}
     impl fmt::Display for Error {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

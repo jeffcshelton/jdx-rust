@@ -52,6 +52,8 @@ pub struct JDXDataset {
 }
 
 extern "C" {
+    pub static JDX_Version: JDXVersion;
+
     pub fn JDX_ReadHeaderFromPath(path: *const u8) -> JDXHeader;
     pub fn JDX_ReadDatasetFromPath(path: *const u8) -> JDXDataset;
 
