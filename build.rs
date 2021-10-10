@@ -16,7 +16,5 @@ fn main() -> Result<(), io::ErrorKind> {
     }
 
     println!("cargo:rustc-link-search=libjdx/lib");
-    println!("cargo:rustc-link-lib=[static]jdx");
-
     Ok(())
 }
