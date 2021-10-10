@@ -83,6 +83,16 @@ pub mod jdx {
     }
 
     impl Header {
+        pub fn new() -> Self {
+            Header {
+                version: Version::current(),
+                color_type: ColorType::Gray,
+                image_width: 0,
+                image_height: 0,
+                item_count: 0,
+            }
+        }
+
         pub(super) fn from_c(c_header: bindings::JDXHeader) -> Result<Header, String> {
             if !c_header.error.is_null() {
                 return unsafe { 
@@ -121,6 +131,14 @@ pub mod jdx {
     }
 
     impl Dataset {
+        pub fn new() -> Self {
+            Dataset {
+                header: Header::new(),
+                images: Vec::new(),
+                labels: Vec::new(),
+            }
+        }
+
         fn from_c(c_dataset: bindings::JDXDataset) -> Result<Dataset, String> {
             if !c_dataset.error.is_null() {
                 return unsafe {
