@@ -121,8 +121,8 @@ pub mod jdx {
             }
         }
 
-        pub fn read_from_file(path: &str) -> io::Result<Header> {
-            let c_header = unsafe { bindings::JDX_ReadHeaderFromPath(path.as_ptr()) };
+        pub fn read_from_file<S>(path: S) -> io::Result<Header> where S: Into<String> {
+            let c_header = unsafe { bindings::JDX_ReadHeaderFromPath(path.into().as_ptr()) };
             let rust_header = Header::from_c(c_header)
                 .map_err(|_| io::Error::last_os_error())?;
 
@@ -179,8 +179,8 @@ pub mod jdx {
             }
         }
 
-        pub fn read_from_file(path: &str) -> io::Result<Dataset> {
-            let c_dataset = unsafe { bindings::JDX_ReadDatasetFromPath(path.as_ptr()) };
+        pub fn read_from_file<S>(path: S) -> io::Result<Dataset> where S: Into<String> {
+            let c_dataset = unsafe { bindings::JDX_ReadDatasetFromPath(path.into().as_ptr()) };
             let rust_dataset = Dataset::from_c(c_dataset)
                 .map_err(|_| io::Error::last_os_error())?;
 
@@ -188,8 +188,8 @@ pub mod jdx {
             Ok(rust_dataset)
         }
 
-        pub fn write_to_file(&mut self, path: &str) -> io::Result<()> {
-            unsafe { bindings::JDX_WriteDatasetToPath(self.to_c(), path.as_ptr()); }
+        pub fn write_to_file<S>(&mut self, path: S) -> io::Result<()> where S: Into<String> {
+            unsafe { bindings::JDX_WriteDatasetToPath(self.to_c(), path.into().as_ptr()); }
             Ok(())
         }
 
