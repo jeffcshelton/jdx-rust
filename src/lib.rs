@@ -45,7 +45,7 @@ pub mod jdx {
 
     impl Version {
         pub fn current() -> Self {
-            unsafe { bindings::JDX_Version }
+            unsafe { bindings::JDX_VERSION }
         }
     }
 
