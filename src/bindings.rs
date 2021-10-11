@@ -51,7 +51,6 @@ pub struct JDXDataset {
     pub error: *const u8,
 }
 
-#[link(name = "jdx", kind = "static")]
 extern "C" {
     pub static JDX_VERSION: JDXVersion;
 
