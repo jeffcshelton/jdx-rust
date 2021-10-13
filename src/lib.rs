@@ -11,14 +11,7 @@ pub mod jdx {
     impl Header {
         pub fn read_from_path<S: Into<String>>(path: S) -> Result<Self> {
             let path_string = path.into();
-            let mut header = Header { // Initialization done only to appease the borrow checker
-                version: Version { major: 0, minor: 0, patch: 0 },
-                image_width: 0,
-                image_height: 0,
-                bit_depth: 0,
-                item_count: 0,
-                compressed_size: 0,
-            };
+            let mut header = Header::empty(); // Initialization done only to appease the borrow checker
 
             let libjdx_error = unsafe {
                 bindings::JDX_ReadHeaderFromPath(&mut header, path_string.as_ptr())
@@ -33,11 +26,30 @@ pub mod jdx {
                 _ => Err(Error::ReadFile(path_string))
             }
         }
+
+        pub(super) fn empty() -> Self {
+            Header {
+                version: Version::empty(),
+                image_width: 0,
+                image_height: 0,
+                bit_depth: 0,
+                item_count: 0,
+                compressed_size: 0,
+            }
+        }
     }
 
     impl Version {
         pub fn current() -> Self {
             unsafe { bindings::JDX_VERSION }
+        }
+
+        pub(super) fn empty() -> Self {
+            Version {
+                major: 0,
+                minor: 0,
+                patch: 0,
+            }
         }
     }
     
@@ -103,14 +115,7 @@ pub mod jdx {
         pub fn read_from_path<S: Into<String>>(path: S) -> Result<Self> {
             let path_string = path.into();
             let mut libjdx_dataset = bindings::JDXDataset { // Initialization done only to appease the borrow checker
-                header: Header {
-                    version: Version { major: 0, minor: 0, patch: 0 },
-                    image_width: 0,
-                    image_height: 0,
-                    bit_depth: 0,
-                    item_count: 0,
-                    compressed_size: 0,
-                },
+                header: Header::empty(),
                 images: ptr::null_mut(),
                 labels: ptr::null_mut(),
             };
