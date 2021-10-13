@@ -1,32 +1,73 @@
 mod bindings;
 
 pub mod jdx {
-    use core::fmt;
-    use std::{io, ptr, error};
+    use std::{ptr, result, slice};
     use crate::bindings;
 
+    pub type Label = i16;
+    pub type Header = bindings::JDXHeader;
     pub type Version = bindings::JDXVersion;
-    pub type ColorType = bindings::JDXColorType;
+
+    impl Header {
+        pub fn read_from_path<S: Into<String>>(path: S) -> Result<Self> {
+            let path_string = path.into();
+            let mut header = Header { // Initialization done only to appease the borrow checker
+                version: Version { major: 0, minor: 0, patch: 0 },
+                image_width: 0,
+                image_height: 0,
+                bit_depth: 0,
+                item_count: 0,
+                compressed_size: 0,
+            };
+
+            let libjdx_error = unsafe {
+                bindings::JDX_ReadHeaderFromPath(&mut header, path_string.as_ptr())
+            };
+
+            match libjdx_error {
+                bindings::JDXError::None => Ok(header),
+                bindings::JDXError::OpenFile => Err(Error::OpenFile(path_string)),
+                bindings::JDXError::ReadFile => Err(Error::ReadFile(path_string)),
+                bindings::JDXError::CorruptFile => Err(Error::CorruptFile(path_string)),
+                bindings::JDXError::CloseFile => Err(Error::CloseFile(path_string)),
+                _ => Err(Error::ReadFile(path_string))
+            }
+        }
+    }
+
+    impl Version {
+        pub fn current() -> Self {
+            unsafe { bindings::JDX_VERSION }
+        }
+    }
     
     #[derive(Clone)]
     pub struct Image {
-        pub data: Box<[u8]>,
+        pub data: Vec<u8>,
 
-        pub width: i16,
-        pub height: i16,
-        pub color_type: ColorType,
+        pub width: u16,
+        pub height: u16,
+        pub bit_depth: u8,
     }
 
-    pub type Label = i16;
+    impl From<bindings::JDXImage> for Image {
+        fn from(libjdx_image: bindings::JDXImage) -> Self {
+            let image_size =
+                libjdx_image.width as usize *
+                libjdx_image.height as usize *
+                (libjdx_image.bit_depth / 8) as usize;
+            
+            let image_data = unsafe {
+                slice::from_raw_parts(libjdx_image.data, image_size).to_vec()
+            };
 
-    #[derive(Clone, Copy)]
-    pub struct Header {
-        pub version: Version,
-        pub color_type: ColorType,
-
-        pub image_width: i16,
-        pub image_height: i16,
-        pub item_count: usize,
+            Image {
+                data: image_data,
+                width: libjdx_image.width,
+                height: libjdx_image.height,
+                bit_depth: libjdx_image.bit_depth,
+            }
+        }
     }
 
     #[derive(Clone)]
@@ -37,174 +78,108 @@ pub mod jdx {
         pub labels: Vec<Label>,
     }
 
-    #[derive(Debug)]
-    pub enum Error {
-        UnequalDimensions,
-        UnequalColorTypes,
-    }
+    impl From<bindings::JDXDataset> for Dataset {
+        fn from(libjdx_dataset: bindings::JDXDataset) -> Self {
+            let images = unsafe {
+                slice::from_raw_parts(libjdx_dataset.images, libjdx_dataset.header.item_count as usize)
+                    .iter()
+                    .map(|libjdx_image| (*libjdx_image).into())
+                    .collect()
+            };
 
-    impl Version {
-        pub fn current() -> Self {
-            unsafe { bindings::JDX_VERSION }
-        }
-    }
+            let labels = unsafe {
+                slice::from_raw_parts(libjdx_dataset.labels, libjdx_dataset.header.item_count as usize).to_vec()
+            };
 
-    impl error::Error for Error {}
-    impl fmt::Display for Error {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            match self {
-                Error::UnequalDimensions => write!(f, "Unequal Dimensions"),
-                Error::UnequalColorTypes => write!(f, "Unequal Color Types"),
+            Dataset {
+                header: libjdx_dataset.header,
+                images: images,
+                labels: labels,
             }
-        }
-    }
-
-    impl Image {
-        pub(super) fn from_c(c_image: bindings::JDXImage) -> Image {
-            let image_size = c_image.width as usize * c_image.height as usize * c_image.color_type as usize;
-            let boxed_data = unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(c_image.data, image_size)) };
-
-            Image {
-                data: boxed_data,
-                width: c_image.width,
-                height: c_image.height,
-                color_type: c_image.color_type,
-            }
-        }
-
-        pub(super) fn to_c(&mut self) -> bindings::JDXImage {
-            bindings::JDXImage {
-                data: self.data.as_mut_ptr(),
-                width: self.width,
-                height: self.height,
-                color_type: self.color_type,
-            }
-        }
-    }
-
-    impl Header {
-        pub fn new() -> Self {
-            Header {
-                version: Version::current(),
-                color_type: ColorType::Gray,
-                image_width: 0,
-                image_height: 0,
-                item_count: 0,
-            }
-        }
-
-        pub(super) fn from_c(c_header: bindings::JDXHeader) -> Result<Header, String> {
-            if !c_header.error.is_null() {
-                return unsafe { 
-                    Err(c_header.error.as_ref().unwrap().to_string())
-                };
-            }
-
-            Ok(Header {
-                version: c_header.version,
-                color_type: c_header.color_type,
-                image_width: c_header.image_width,
-                image_height: c_header.image_height,
-                item_count: c_header.item_count as usize,
-            })
-        }
-
-        pub(super) fn to_c(&self) -> bindings::JDXHeader {
-            bindings::JDXHeader {
-                version: self.version,
-                color_type: self.color_type,
-                image_width: self.image_width,
-                image_height: self.image_height,
-                item_count: self.item_count as i64,
-                compressed_size: -1,
-                error: ptr::null(),
-            }
-        }
-
-        pub fn read_from_file<S>(path: S) -> io::Result<Header> where S: Into<String> {
-            let c_header = unsafe { bindings::JDX_ReadHeaderFromPath(path.into().as_ptr()) };
-            let rust_header = Header::from_c(c_header)
-                .map_err(|_| io::Error::last_os_error())?;
-
-            Ok(rust_header)
         }
     }
 
     impl Dataset {
-        pub fn new() -> Self {
-            Dataset {
-                header: Header::new(),
-                images: Vec::new(),
-                labels: Vec::new(),
+        pub fn read_from_path<S: Into<String>>(path: S) -> Result<Self> {
+            let path_string = path.into();
+            let mut libjdx_dataset = bindings::JDXDataset { // Initialization done only to appease the borrow checker
+                header: Header {
+                    version: Version { major: 0, minor: 0, patch: 0 },
+                    image_width: 0,
+                    image_height: 0,
+                    bit_depth: 0,
+                    item_count: 0,
+                    compressed_size: 0,
+                },
+                images: ptr::null_mut(),
+                labels: ptr::null_mut(),
+            };
+
+            let libjdx_error = unsafe {
+                bindings::JDX_ReadDatasetFromPath(&mut libjdx_dataset, path_string.as_ptr())
+            };
+
+            let result = match libjdx_error {
+                bindings::JDXError::None => Ok(libjdx_dataset.into()),
+                bindings::JDXError::OpenFile => Err(Error::OpenFile(path_string)),
+                bindings::JDXError::ReadFile => Err(Error::ReadFile(path_string)),
+                bindings::JDXError::CorruptFile => Err(Error::CorruptFile(path_string)),
+                bindings::JDXError::CloseFile => Err(Error::CloseFile(path_string)),
+                _ => Err(Error::ReadFile(path_string))
+            };
+
+            unsafe {
+                bindings::JDX_FreeDataset(libjdx_dataset);
+            }
+
+            return result;
+        }
+
+        pub fn write_to_path<S: Into<String>>(&self, path: S) -> Result<()> {
+            let path_string = path.into();
+
+            let libjdx_error = unsafe {
+                bindings::JDX_WriteDatasetToPath(self.into(), path_string.as_ptr())
+            };
+
+            match libjdx_error {
+                bindings::JDXError::None => Ok(()),
+                bindings::JDXError::OpenFile => Err(Error::OpenFile(path_string)),
+                bindings::JDXError::WriteFile => Err(Error::WriteFile(path_string)),
+                bindings::JDXError::CloseFile => Err(Error::CloseFile(path_string)),
+                _ => Err(Error::WriteFile(path_string))
             }
         }
 
-        fn from_c(c_dataset: bindings::JDXDataset) -> Result<Dataset, String> {
-            if !c_dataset.error.is_null() {
-                return unsafe {
-                    Err(c_dataset.error.as_ref().unwrap().to_string())
-                };
+        pub fn append(&mut self, dataset: &Dataset) -> Result<()> {
+            if self.header.image_width != dataset.header.image_width {
+                return Err(Error::UnequalWidths)
+            } else if self.header.image_height != dataset.header.image_height {
+                return Err(Error::UnequalHeights)
+            } else if self.header.bit_depth != dataset.header.bit_depth {
+                return Err(Error::UnequalBitDepths)
             }
 
-            let c_images = unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(c_dataset.images, c_dataset.header.item_count as usize)) };
-            let c_labels = unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(c_dataset.labels, c_dataset.header.item_count as usize)) };
+            self.images.append(&mut dataset.images.clone());
+            self.labels.append(&mut dataset.labels.clone());
 
-            let r_header = Header::from_c(c_dataset.header)?;
-            let mut r_images = Vec::with_capacity(c_images.len());
-            let mut r_labels = Vec::with_capacity(c_labels.len());
-
-            for i in 0..r_header.item_count {
-                r_images.push(Image::from_c(c_images[i]));
-                r_labels.push(c_labels[i] as Label);
-            }
-
-            Ok(Dataset {
-                header: r_header,
-                images: r_images,
-                labels: r_labels
-            })
-        }
-
-        fn to_c(&mut self) -> bindings::JDXDataset {
-            let mut c_images: Vec<bindings::JDXImage> = self.images
-                .iter_mut()
-                .map(|image| image.to_c())
-                .collect();
-
-            bindings::JDXDataset {
-                header: self.header.to_c(),
-                images: c_images.as_mut_ptr(),
-                labels: self.labels.as_mut_ptr(),
-                error: ptr::null(),
-            }
-        }
-
-        pub fn read_from_file<S>(path: S) -> io::Result<Dataset> where S: Into<String> {
-            let c_dataset = unsafe { bindings::JDX_ReadDatasetFromPath(path.into().as_ptr()) };
-            let rust_dataset = Dataset::from_c(c_dataset)
-                .map_err(|_| io::Error::last_os_error())?;
-
-            unsafe { bindings::JDX_FreeDataset(c_dataset) };
-            Ok(rust_dataset)
-        }
-
-        pub fn write_to_file<S>(&mut self, path: S) -> io::Result<()> where S: Into<String> {
-            unsafe { bindings::JDX_WriteDatasetToPath(self.to_c(), path.into().as_ptr()); }
-            Ok(())
-        }
-
-        pub fn append(&mut self, dset: &Dataset) -> Result<(), Error> {
-            if self.header.image_width != dset.header.image_width || self.header.image_height != dset.header.image_height {
-                return Err(Error::UnequalDimensions);
-            } else if self.header.color_type != dset.header.color_type {
-                return Err(Error::UnequalColorTypes);
-            }
-
-            self.images.append(&mut dset.images.clone());
-            self.labels.append(&mut dset.labels.clone());
-
-            self.header.item_count += dset.header.item_count;
+            self.header.item_count += dataset.header.item_count;
             Ok(())
         }
     }
+
+    #[derive(Clone)]
+    pub enum Error {
+        OpenFile(String),
+        CloseFile(String),
+        ReadFile(String),
+        WriteFile(String),
+        CorruptFile(String),
+
+        UnequalWidths,
+        UnequalHeights,
+        UnequalBitDepths,
+    }
+
+    pub type Result<T> = result::Result<T, Error>;
 }
