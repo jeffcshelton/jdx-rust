@@ -4,7 +4,7 @@ use crate::jdx;
 pub type JDXLabel = i16;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct JDXVersion {
     pub major: u8,
     pub minor: u8,
@@ -55,7 +55,7 @@ impl From<&jdx::Image> for JDXImage {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct JDXHeader {
     pub version: JDXVersion,
 
