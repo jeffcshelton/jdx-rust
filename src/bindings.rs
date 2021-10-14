@@ -1,7 +1,7 @@
 use std::mem;
 use crate::jdx;
 
-pub type JDXLabel = i16;
+pub type JDXLabel = u16;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -30,27 +30,30 @@ pub enum JDXError {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct JDXImage {
+pub struct JDXItem {
     pub data: *mut u8,
 
     pub width: u16,
     pub height: u16,
     pub bit_depth: u8,
+
+    pub label: JDXLabel,
 }
 
-impl From<&jdx::Image> for JDXImage {
-    fn from(image: &jdx::Image) -> Self {
-        let mut data = image.data.clone();
+impl From<&jdx::Item> for JDXItem {
+    fn from(item: &jdx::Item) -> Self {
+        let mut image_data = item.data.clone();
 
-        let libjdx_image = JDXImage {
-            data: data.as_mut_ptr(),
-            width: image.width,
-            height: image.height,
-            bit_depth: image.bit_depth,
+        let libjdx_item = JDXItem {
+            data: image_data.as_mut_ptr(),
+            width: item.width,
+            height: item.height,
+            bit_depth: item.bit_depth,
+            label: item.label,
         };
 
-        mem::forget(data);
-        return libjdx_image;
+        mem::forget(image_data);
+        return libjdx_item;
     }
 }
 
@@ -71,30 +74,22 @@ pub struct JDXHeader {
 #[derive(Clone, Copy)]
 pub struct JDXDataset {
     pub header: JDXHeader,
-
-    pub images: *mut JDXImage,
-    pub labels: *mut JDXLabel,
+    pub items: *mut JDXItem,
 }
 
 impl From<&jdx::Dataset> for JDXDataset {
     fn from(dataset: &jdx::Dataset) -> Self {
-        let mut images = dataset.images
+        let mut items = dataset.items
             .iter()
-            .map(|image| image.into())
-            .collect::<Vec<JDXImage>>();
+            .map(|item| item.into())
+            .collect::<Vec<JDXItem>>();
         
-        let mut labels = dataset.labels
-            .clone();
-
         let libjdx_dataset = JDXDataset {
             header: dataset.header,
-            images: images.as_mut_ptr(),
-            labels: labels.as_mut_ptr(),
+            items: items.as_mut_ptr(),
         };
 
-        mem::forget(images);
-        mem::forget(labels);
-
+        mem::forget(items);
         return libjdx_dataset;
     }
 }

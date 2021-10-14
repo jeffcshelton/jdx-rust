@@ -4,7 +4,7 @@ pub mod jdx {
     use std::{ptr, result, slice};
     use crate::bindings;
 
-    pub type Label = i16;
+    pub type Label = bindings::JDXLabel;
     pub type Header = bindings::JDXHeader;
     pub type Version = bindings::JDXVersion;
 
@@ -33,32 +33,35 @@ pub mod jdx {
             unsafe { bindings::JDX_VERSION }
         }
     }
-    
+
     #[derive(Clone)]
-    pub struct Image {
+    pub struct Item {
         pub data: Vec<u8>,
 
         pub width: u16,
         pub height: u16,
         pub bit_depth: u8,
+
+        pub label: Label,
     }
 
-    impl From<bindings::JDXImage> for Image {
-        fn from(libjdx_image: bindings::JDXImage) -> Self {
+    impl From<&bindings::JDXItem> for Item {
+        fn from(libjdx_item: &bindings::JDXItem) -> Self {
             let image_size =
-                libjdx_image.width as usize *
-                libjdx_image.height as usize *
-                (libjdx_image.bit_depth / 8) as usize;
+                libjdx_item.width as usize *
+                libjdx_item.height as usize *
+                (libjdx_item.bit_depth / 8) as usize;
             
             let image_data = unsafe {
-                slice::from_raw_parts(libjdx_image.data, image_size).to_vec()
+                slice::from_raw_parts(libjdx_item.data, image_size).to_vec()
             };
 
-            Image {
+            Item {
                 data: image_data,
-                width: libjdx_image.width,
-                height: libjdx_image.height,
-                bit_depth: libjdx_image.bit_depth,
+                width: libjdx_item.width,
+                height: libjdx_item.height,
+                bit_depth: libjdx_item.bit_depth,
+                label: libjdx_item.label,
             }
         }
     }
@@ -66,28 +69,21 @@ pub mod jdx {
     #[derive(Clone, Default)]
     pub struct Dataset {
         pub header: Header,
-
-        pub images: Vec<Image>,
-        pub labels: Vec<Label>,
+        pub items: Vec<Item>,
     }
 
     impl From<bindings::JDXDataset> for Dataset {
         fn from(libjdx_dataset: bindings::JDXDataset) -> Self {
-            let images = unsafe {
-                slice::from_raw_parts(libjdx_dataset.images, libjdx_dataset.header.item_count as usize)
+            let items = unsafe {
+                slice::from_raw_parts(libjdx_dataset.items, libjdx_dataset.header.item_count as usize)
                     .iter()
-                    .map(|libjdx_image| (*libjdx_image).into())
+                    .map(|libjdx_item| libjdx_item.into())
                     .collect()
-            };
-
-            let labels = unsafe {
-                slice::from_raw_parts(libjdx_dataset.labels, libjdx_dataset.header.item_count as usize).to_vec()
             };
 
             Dataset {
                 header: libjdx_dataset.header,
-                images: images,
-                labels: labels,
+                items: items,
             }
         }
     }
@@ -97,8 +93,7 @@ pub mod jdx {
             let path_string = path.into();
             let mut libjdx_dataset = bindings::JDXDataset { // Initialization done only to appease the borrow checker
                 header: Header::default(),
-                images: ptr::null_mut(),
-                labels: ptr::null_mut(),
+                items: ptr::null_mut(),
             };
 
             let libjdx_error = unsafe {
@@ -146,8 +141,7 @@ pub mod jdx {
                 return Err(Error::UnequalBitDepths)
             }
 
-            self.images.append(&mut dataset.images.clone());
-            self.labels.append(&mut dataset.labels.clone());
+            self.items.append(&mut dataset.items.clone());
 
             self.header.item_count += dataset.header.item_count;
             Ok(())
