@@ -1,7 +1,7 @@
 mod bindings;
 
 pub mod jdx {
-    use std::{ptr, result, slice};
+    use std::{ptr, result, slice, ffi};
     use crate::bindings;
 
     pub type Label = bindings::JDXLabel;
@@ -13,8 +13,11 @@ pub mod jdx {
             let path_string = path.into();
             let mut header = Header::default(); // Initialization done only to appease the borrow checker
 
+            // TODO: Possibly add error handling with fatal printing here (instead of unwrap)
+            let path_cstring = ffi::CString::new(path_string.clone()).unwrap();
+
             let libjdx_error = unsafe {
-                bindings::JDX_ReadHeaderFromPath(&mut header, path_string.as_ptr())
+                bindings::JDX_ReadHeaderFromPath(&mut header, path_cstring.as_ptr())
             };
 
             match libjdx_error {
@@ -96,8 +99,11 @@ pub mod jdx {
                 items: ptr::null_mut(),
             };
 
+            // TODO: Possibly add error handling with fatal printing here (instead of unwrap)
+            let path_cstring = ffi::CString::new(path_string.clone()).unwrap();
+
             let libjdx_error = unsafe {
-                bindings::JDX_ReadDatasetFromPath(&mut libjdx_dataset, path_string.as_ptr())
+                bindings::JDX_ReadDatasetFromPath(&mut libjdx_dataset, path_cstring.as_ptr())
             };
 
             let result = match libjdx_error {
@@ -119,8 +125,11 @@ pub mod jdx {
         pub fn write_to_path<S: Into<String>>(&self, path: S) -> Result<()> {
             let path_string = path.into();
 
+            // TODO: Possibly add error handling with fatal printing here (instead of unwrap)
+            let path_cstring = ffi::CString::new(path_string.clone()).unwrap();
+
             let libjdx_error = unsafe {
-                bindings::JDX_WriteDatasetToPath(self.into(), path_string.as_ptr())
+                bindings::JDX_WriteDatasetToPath(self.into(), path_cstring.as_ptr())
             };
 
             match libjdx_error {
