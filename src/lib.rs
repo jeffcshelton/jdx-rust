@@ -1,7 +1,7 @@
 mod bindings;
 
 pub mod jdx {
-    use std::{ptr, result, slice, ffi};
+    use std::{error, fmt, ffi, ptr, result, slice};
     use crate::bindings;
 
     pub type Label = bindings::JDXLabel;
@@ -157,7 +157,7 @@ pub mod jdx {
         }
     }
 
-    #[derive(Clone)]
+    #[derive(Debug, Clone)]
     pub enum Error {
         OpenFile(String),
         CloseFile(String),
@@ -169,6 +169,23 @@ pub mod jdx {
         UnequalHeights,
         UnequalBitDepths,
     }
+
+    impl fmt::Display for Error {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match self {
+                Self::OpenFile(path) => write!(f, "Failed to open file: '{}'", path),
+                Self::CloseFile(path) => write!(f, "Failed to close file: '{}'", path),
+                Self::ReadFile(path) => write!(f, "Failed to read file: '{}'", path),
+                Self::WriteFile(path) => write!(f, "Failed to write to file: '{}'", path),
+                Self::CorruptFile(path) => write!(f, "Failed to parse corrupted file: '{}'", path),
+                Self::UnequalWidths => write!(f, "Datasets have unequal image widths."),
+                Self::UnequalHeights => write!(f, "Datasets have unequal image heights."),
+                Self::UnequalBitDepths => write!(f, "Datasets have unequal bit depths."),
+            }
+        }
+    }
+
+    impl error::Error for Error {}
 
     pub type Result<T> = result::Result<T, Error>;
 }
