@@ -97,9 +97,9 @@ impl From<&jdx::Dataset> for JDXDataset {
 extern "C" {
     pub static JDX_VERSION: JDXVersion;
 
-    pub fn JDX_ReadHeaderFromPath(dest: *mut JDXHeader, path: *const u8) -> JDXError;
-    pub fn JDX_ReadDatasetFromPath(dest: *mut JDXDataset, path: *const u8) -> JDXError;
+    pub fn JDX_ReadHeaderFromPath(dest: *mut JDXHeader, path: *const i8) -> JDXError;
+    pub fn JDX_ReadDatasetFromPath(dest: *mut JDXDataset, path: *const i8) -> JDXError;
 
-    pub fn JDX_WriteDatasetToPath(dataset: JDXDataset, path: *const u8) -> JDXError;
+    pub fn JDX_WriteDatasetToPath(dataset: JDXDataset, path: *const i8) -> JDXError;
     pub fn JDX_FreeDataset(dataset: JDXDataset);
 }
