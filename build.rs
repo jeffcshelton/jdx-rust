@@ -22,6 +22,11 @@ fn main() -> Result<(), io::ErrorKind> {
 	}
 
 	if cfg!(unix) {
+		Command::new("git")
+			.args(&["submodule", "update", "--init", "--recursive"])
+			.status()
+			.map_err(|_| io::ErrorKind::NotFound)?;
+
 		Command::new("make")
 			.arg(target)
 			.status()
