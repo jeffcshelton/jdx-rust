@@ -4,11 +4,28 @@ use crate::jdx;
 pub type JDXLabel = u16;
 
 #[repr(C)]
+#[derive(Clone, Copy)]
+pub enum JDXBuildType {
+	Dev,
+	Alpha,
+	Beta,
+	RC,
+	Release,
+}
+
+impl Default for JDXBuildType {
+	fn default() -> Self {
+		Self::Dev
+	}
+}
+
+#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct JDXVersion {
 	pub major: u8,
 	pub minor: u8,
 	pub patch: u8,
+	pub build_type: JDXBuildType
 }
 
 #[repr(C)]
