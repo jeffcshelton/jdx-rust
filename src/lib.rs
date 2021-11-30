@@ -41,7 +41,7 @@ pub mod jdx {
 	impl ToString for Version {
 		fn to_string(&self) -> String {
 			let build_type_str = match self.build_type {
-				BuildType::Dev => " (development build)",
+				BuildType::Dev => " (dev build)",
 				BuildType::Alpha => "-alpha",
 				BuildType::Beta => "-beta",
 				BuildType::RC => "-rc",
