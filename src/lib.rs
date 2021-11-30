@@ -4,6 +4,7 @@ pub mod jdx {
 	use std::{error, fmt, ffi, ptr, result, slice};
 	use crate::bindings;
 
+	pub type BuildType = bindings::JDXBuildType;
 	pub type Label = bindings::JDXLabel;
 	pub type Header = bindings::JDXHeader;
 	pub type Version = bindings::JDXVersion;
