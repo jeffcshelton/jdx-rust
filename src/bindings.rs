@@ -1,31 +1,18 @@
-use std::mem;
-use crate::jdx;
-
 pub type JDXLabel = u16;
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub enum JDXBuildType {
-	Dev,
-	Alpha,
-	Beta,
-	RC,
-	Release,
-}
-
-impl Default for JDXBuildType {
-	fn default() -> Self {
-		Self::Dev
-	}
-}
+pub const JDX_BUILD_DEV: u8 = 0;
+pub const JDX_BUILD_ALPHA: u8 = 1;
+pub const JDX_BUILD_BETA: u8 = 2;
+pub const JDX_BUILD_RC: u8 = 3;
+pub const JDX_BUILD_RELEASE: u8 = 4;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct JDXVersion {
-	pub major: u8,
-	pub minor: u8,
+	pub build_type: u8,
 	pub patch: u8,
-	pub build_type: JDXBuildType
+	pub minor: u8,
+	pub major: u8
 }
 
 #[repr(C)]
@@ -39,6 +26,8 @@ pub enum JDXError {
 	ReadFile,
 	WriteFile,
 	CorruptFile,
+
+	MemoryFailure,
 
 	UnequalWidths,
 	UnequalHeights,
@@ -57,25 +46,8 @@ pub struct JDXItem {
 	pub label: JDXLabel,
 }
 
-impl From<&jdx::Item> for JDXItem {
-	fn from(item: &jdx::Item) -> Self {
-		let mut image_data = item.data.clone();
-
-		let libjdx_item = JDXItem {
-			data: image_data.as_mut_ptr(),
-			width: item.width,
-			height: item.height,
-			bit_depth: item.bit_depth,
-			label: item.label,
-		};
-
-		mem::forget(image_data);
-		return libjdx_item;
-	}
-}
-
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub struct JDXHeader {
 	pub version: JDXVersion,
 
@@ -83,40 +55,35 @@ pub struct JDXHeader {
 	pub image_height: u16,
 	pub bit_depth: u8,
 
+	pub labels: *mut *const i8,
+	pub label_count: u16,
+
 	pub item_count: u64,
-	pub compressed_size: u64,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct JDXDataset {
-	pub header: JDXHeader,
+	pub header: *mut JDXHeader,
 	pub items: *mut JDXItem,
 }
 
-impl From<&jdx::Dataset> for JDXDataset {
-	fn from(dataset: &jdx::Dataset) -> Self {
-		let mut items = dataset.items
-			.iter()
-			.map(|item| item.into())
-			.collect::<Vec<JDXItem>>();
-		
-		let libjdx_dataset = JDXDataset {
-			header: dataset.header,
-			items: items.as_mut_ptr(),
-		};
-
-		mem::forget(items);
-		return libjdx_dataset;
-	}
-}
-
+#[allow(dead_code)]
 extern "C" {
 	pub static JDX_VERSION: JDXVersion;
 
-	pub fn JDX_ReadHeaderFromPath(dest: *mut JDXHeader, path: *const i8) -> JDXError;
-	pub fn JDX_ReadDatasetFromPath(dest: *mut JDXDataset, path: *const i8) -> JDXError;
+	pub fn JDX_AllocHeader() -> *mut JDXHeader;
+	pub fn JDX_FreeHeader(header: *mut JDXHeader);
+	pub fn JDX_CopyHeader(dest: *mut JDXHeader, src: *const JDXHeader);
 
-	pub fn JDX_WriteDatasetToPath(dataset: JDXDataset, path: *const i8) -> JDXError;
-	pub fn JDX_FreeDataset(dataset: JDXDataset);
+	pub fn JDX_ReadHeaderFromPath(dest: *mut JDXHeader, path: *const i8) -> JDXError;
+
+	pub fn JDX_AllocDataset() -> *mut JDXDataset;
+	pub fn JDX_FreeDataset(dataset: *mut JDXDataset);
+	pub fn JDX_CopyDataset(dest: *mut JDXDataset, src: *const JDXDataset);
+
+	pub fn JDX_AppendDataset(dest: *mut JDXDataset, src: *const JDXDataset);
+
+	pub fn JDX_ReadDatasetFromPath(dest: *mut JDXDataset, path: *const i8) -> JDXError;
+	pub fn JDX_WriteDatasetToPath(dataset: *const JDXDataset, path: *const i8) -> JDXError;
 }
