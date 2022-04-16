@@ -1,10 +1,13 @@
-use crate::{bindings, jdx};
-use std::{slice, ffi};
+use libc::c_void;
+
+use crate::jdx::{self, Header};
+use std::{slice, ptr, mem};
 
 #[derive(Clone)]
 pub struct Dataset {
-	pub header: jdx::Header,
-	pub items: Vec<Item>,
+	pub header: Header,
+	image_data: Vec<u8>,
+	label_data: Vec<u16>,
 }
 
 impl Dataset {
