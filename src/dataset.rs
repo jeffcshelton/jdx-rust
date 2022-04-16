@@ -23,6 +23,21 @@ impl Dataset {
 
 		return Ok(dataset_ptr.into());
 	}
+
+	pub fn get_image(&self, index: usize) -> Option<Image> {
+		unsafe {
+			let image_ptr = jdx::ffi::JDX_GetImage(
+				Into::<*mut jdx::ffi::JDXDataset>::into(self),
+				index as u64
+			);
+
+			if image_ptr.is_null() {
+				return None;
+			}
+
+			return Some(image_ptr.into());
+		}
+	}
 }
 
 impl From<*mut jdx::ffi::JDXDataset> for Dataset {
