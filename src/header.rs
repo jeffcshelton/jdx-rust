@@ -59,22 +59,35 @@ impl From<*mut jdx::ffi::JDXHeader> for Header {
 	}
 }
 
-impl From<&bindings::JDXHeader> for Header {
-	fn from(header: &bindings::JDXHeader) -> Self {
-		let labels = unsafe {
-			slice::from_raw_parts(header.labels, header.label_count as usize)
-			.iter()
-			.map(|&label| ffi::CStr::from_ptr(label).to_string_lossy().into_owned())
-			.collect()
-		};
+impl From<&Header> for *mut jdx::ffi::JDXHeader {
+	fn from(header: &Header) -> *mut jdx::ffi::JDXHeader {
+		unsafe {
+			let header_ptr = jdx::ffi::JDX_AllocHeader();
 
-		Header {
-			version: header.version,
-			image_width: header.image_width,
-			image_height: header.image_height,
-			bit_depth: header.bit_depth,
-			labels: labels,
-			item_count: header.item_count,
+			let labels = header.labels
+				.iter()
+				.map(|label| { // TODO: Consider doing this directly with malloc to avoid extra allocation
+					let label_cstr = std::ffi::CString::new(label.clone()).unwrap();
+					return libc::strdup(label_cstr.as_ptr());
+				})
+				.collect::<Vec<*mut c_char>>();
+
+			let labels_ptr = jdx::ffi::memdup(
+				labels.as_ptr() as *const c_void,
+				mem::size_of_val(&labels as &[*mut c_char]
+			)) as *mut *mut c_char;
+
+			*header_ptr = jdx::ffi::JDXHeader {
+				version: header.version,
+				image_count: header.image_count,
+				image_width: header.image_width,
+				image_height: header.image_height,
+				bit_depth: header.bit_depth,
+				labels: labels_ptr,
+				label_count: header.labels.len() as u16, // TODO: Consider checking this cast
+			};
+
+			return header_ptr;
 		}
 	}
 }
