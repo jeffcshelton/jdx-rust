@@ -55,18 +55,26 @@ impl From<*mut jdx::ffi::JDXDataset> for Dataset {
 	}
 }
 
-impl From<&bindings::JDXDataset> for Dataset {
-	fn from(dataset: &bindings::JDXDataset) -> Self {
-		let items = unsafe {
-			slice::from_raw_parts(dataset.items, (*dataset.header).item_count as usize)
-				.iter()
-				.map(|item| item.into())
-				.collect()
-		};
+impl From<&Dataset> for *mut jdx::ffi::JDXDataset {
+	fn from(dataset: &Dataset) -> Self {
+		let header_ptr: *mut jdx::ffi::JDXHeader = (&dataset.header).into();
 
-		Dataset {
-			header: unsafe { &*dataset.header }.into() ,
-			items: items,
+		unsafe {
+			let dataset_ptr = jdx::ffi::JDX_AllocDataset();
+
+			*dataset_ptr = jdx::ffi::JDXDataset {
+				header: header_ptr,
+				_raw_image_data: jdx::ffi::memdup(
+					dataset.image_data.as_ptr() as *const c_void,
+					mem::size_of_val(&dataset.image_data as &[u8]
+				)) as *mut u8,
+				_raw_labels: jdx::ffi::memdup(
+					dataset.label_data.as_ptr() as *const c_void,
+					mem::size_of_val(&dataset.label_data as &[u16]
+				)) as *mut u16,
+			};
+
+			return dataset_ptr;
 		}
 	}
 }
