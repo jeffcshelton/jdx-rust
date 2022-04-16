@@ -35,11 +35,27 @@ impl Header {
 			_ => Err(jdx::Error::ReadFile(path_string))
 		};
 
+impl From<*mut jdx::ffi::JDXHeader> for Header {
+	fn from(header_ptr: *mut jdx::ffi::JDXHeader) -> Self {
 		unsafe {
-			bindings::JDX_FreeHeader(header_ptr);
-		}
+			let header = *header_ptr;
 
-		return result;
+			let labels = slice::from_raw_parts(header.labels, header.label_count as usize)
+				.iter()
+				.map(|&label| std::ffi::CStr::from_ptr(label).to_string_lossy().into_owned())
+				.collect();
+
+			jdx::ffi::JDX_FreeHeader(header_ptr);
+
+			return Self {
+				version: header.version,
+				image_width: header.image_width,
+				image_height: header.image_height,
+				bit_depth: header.bit_depth,
+				image_count: header.image_count,
+				labels: labels,
+			};
+		}
 	}
 }
 
