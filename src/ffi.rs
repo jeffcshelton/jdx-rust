@@ -1,4 +1,4 @@
-use libc::c_char;
+use libc::{c_char, c_void};
 
 // TODO: Consider changing all types with pointers to have lifetimes to reduce copying
 
@@ -99,4 +99,12 @@ extern "C" {
 	pub fn JDX_WriteDatasetToPath(dataset: *const JDXDataset, path: *const i8) -> JDXError;
 
 	pub fn JDX_FreeImage(image: *mut JDXImage);
+}
+
+// TODO: Find a better spot for this function
+pub(crate) unsafe fn memdup(src: *const c_void, size: usize) -> *mut c_void {
+	let block = libc::malloc(size);
+	libc::memcpy(block, src, size);
+
+	return block;
 }
