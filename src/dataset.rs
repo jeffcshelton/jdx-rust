@@ -79,33 +79,42 @@ impl From<&Dataset> for *mut jdx::ffi::JDXDataset {
 }
 
 #[derive(Clone)]
-pub struct Item {
-	pub data: Vec<u8>,
+pub struct Image {
+	pub raw_data: Vec<u8>,
 
 	pub width: u16,
 	pub height: u16,
 	pub bit_depth: u8,
 
-	pub label: jdx::Label,
+	pub label: String,
+	pub label_index: u16,
 }
 
-impl From<&bindings::JDXItem> for Item {
-	fn from(libjdx_item: &bindings::JDXItem) -> Self {
-		let image_size =
-			libjdx_item.width as usize *
-			libjdx_item.height as usize *
-			(libjdx_item.bit_depth / 8) as usize;
-		
-		let image_data = unsafe {
-			slice::from_raw_parts(libjdx_item.data, image_size).to_vec()
-		};
+impl From<*mut jdx::ffi::JDXImage> for Image {
+	fn from(image_ptr: *mut jdx::ffi::JDXImage) -> Self {
+		unsafe {
+			let image = *image_ptr;
 
-		Item {
-			data: image_data,
-			width: libjdx_item.width,
-			height: libjdx_item.height,
-			bit_depth: libjdx_item.bit_depth,
-			label: libjdx_item.label,
+			let data_size =
+				image.width as usize *
+				image.height as usize *
+				image.bit_depth as usize;
+
+			let raw_data = slice::from_raw_parts_mut(image.raw_data, data_size).to_vec();
+
+			let label = std::ffi::CStr::from_ptr(image.label as *mut i8)
+				.to_str()
+				.unwrap()
+				.to_owned();
+
+			return Self {
+				raw_data: raw_data,
+				width: image.width,
+				height: image.height,
+				bit_depth: image.bit_depth,
+				label: label,
+				label_index: image.label_index,
+			};
 		}
 	}
 }
