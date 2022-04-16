@@ -26,7 +26,32 @@ impl Dataset {
 			bindings::JDX_FreeDataset(dataset_ptr);
 		}
 
-		return result;
+impl From<*mut jdx::ffi::JDXDataset> for Dataset {
+	fn from(dataset_ptr: *mut jdx::ffi::JDXDataset) -> Self {
+		unsafe {
+			let dataset = *dataset_ptr;
+
+			let header: Header = dataset.header.into();
+			(*dataset_ptr).header = ptr::null_mut();
+
+			let image_data = slice::from_raw_parts_mut(
+				dataset._raw_image_data,
+				jdx::ffi::JDX_GetImageSize(dataset.header) * header.image_count as usize,
+			).to_vec();
+
+			let label_data = slice::from_raw_parts_mut(
+				dataset._raw_labels,
+				mem::size_of::<jdx::ffi::JDXLabel>() * header.image_count as usize,
+			).to_vec();
+
+			jdx::ffi::JDX_FreeDataset(dataset_ptr);
+
+			return Self {
+				header: header,
+				image_data: image_data,
+				label_data: label_data,
+			};
+		}
 	}
 }
 
