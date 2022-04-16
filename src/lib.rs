@@ -1,13 +1,16 @@
-mod bindings;
+pub mod ffi;
+
 mod dataset;
 mod header;
 
 pub mod jdx {
 	pub use crate::dataset::*;
 	pub use crate::header::*;
+	pub use crate::ffi;
 
 	use std::{error, fmt, result};
-	use crate::bindings;
+
+	pub type Label = ffi::JDXLabel;
 
 	#[derive(Debug, Clone)]
 	pub enum Error {
@@ -25,20 +28,22 @@ pub mod jdx {
 	}
 
 	impl Error {
-		pub fn new_with_path<S: Into<String>>(error: bindings::JDXError, path: S) -> Option<Self> {
-			let path = path.into();
+		pub fn new_with_path(error: ffi::JDXError, path: &str) -> Option<Self> {
+			use ffi::JDXError;
+
+			let path = path.to_owned();
 
 			match error {
-				bindings::JDXError::None => None,
-				bindings::JDXError::OpenFile => Some(Error::OpenFile(path)),
-				bindings::JDXError::CloseFile => Some(Error::CloseFile(path)),
-				bindings::JDXError::ReadFile => Some(Error::ReadFile(path)),
-				bindings::JDXError::WriteFile => Some(Error::WriteFile(path)),
-				bindings::JDXError::CorruptFile => Some(Error::CorruptFile(path)),
-				bindings::JDXError::MemoryFailure => Some(Error::MemoryFailure),
-				bindings::JDXError::UnequalWidths => Some(Error::UnequalWidths),
-				bindings::JDXError::UnequalHeights => Some(Error::UnequalHeights),
-				bindings::JDXError::UnequalBitDepths => Some(Error::UnequalBitDepths),
+				JDXError::None => None,
+				JDXError::OpenFile => Some(Self::OpenFile(path)),
+				JDXError::CloseFile => Some(Self::CloseFile(path)),
+				JDXError::ReadFile => Some(Self::ReadFile(path)),
+				JDXError::WriteFile => Some(Self::WriteFile(path)),
+				JDXError::CorruptFile => Some(Self::CorruptFile(path)),
+				JDXError::MemoryFailure => Some(Self::MemoryFailure),
+				JDXError::UnequalWidths => Some(Self::UnequalWidths),
+				JDXError::UnequalHeights => Some(Self::UnequalHeights),
+				JDXError::UnequalBitDepths => Some(Self::UnequalBitDepths),
 			}
 		}
 	}

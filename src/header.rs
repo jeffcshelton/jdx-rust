@@ -89,18 +89,18 @@ impl From<&Header> for *mut jdx::ffi::JDXHeader {
 
 impl Version {
 	pub fn current() -> Self {
-		unsafe { bindings::JDX_VERSION }
+		unsafe { jdx::ffi::JDX_VERSION }
 	}
 }
 
 impl ToString for Version {
 	fn to_string(&self) -> String {
 		let build_type_str = match self.build_type {
-			bindings::JDX_BUILD_DEV => " (dev build)",
-			bindings::JDX_BUILD_ALPHA => "-alpha",
-			bindings::JDX_BUILD_BETA => "-beta",
-			bindings::JDX_BUILD_RC => "-rc",
-			bindings::JDX_BUILD_RELEASE => "",
+			jdx::ffi::JDX_BUILD_DEV => " (dev build)",
+			jdx::ffi::JDX_BUILD_ALPHA => "-alpha",
+			jdx::ffi::JDX_BUILD_BETA => "-beta",
+			jdx::ffi::JDX_BUILD_RC => "-rc",
+			jdx::ffi::JDX_BUILD_RELEASE => "",
 			_ => " (invalid build)"
 		};
 		
