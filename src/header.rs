@@ -1,8 +1,8 @@
-use crate::{bindings, jdx};
-use std::{slice, ffi};
+use libc::{c_char, c_void};
+use std::{slice, mem};
+use crate::jdx;
 
-pub type Label = bindings::JDXLabel;
-pub type Version = bindings::JDXVersion;
+pub type Version = jdx::ffi::JDXVersion;
 
 #[derive(Clone)]
 pub struct Header {
@@ -11,9 +11,9 @@ pub struct Header {
 	pub image_width: u16,
 	pub image_height: u16,
 	pub bit_depth: u8,
+	pub image_count: u64,
 
 	pub labels: Vec<String>,
-	pub item_count: u64,
 }
 
 impl Header {
