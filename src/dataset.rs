@@ -11,23 +11,19 @@ pub struct Dataset {
 }
 
 impl Dataset {
-	pub fn read_from_path<S: Into<String>>(path: S) -> jdx::Result<Self> {
-		let path_string = path.into();
-		let path_cstring = ffi::CString::new(path_string.clone()).unwrap();
-		let dataset_ptr = unsafe { bindings::JDX_AllocDataset() };
+	pub fn read_from_path(path: &str) -> jdx::Result<Self> {
+		let path_cstring = std::ffi::CString::new(path).unwrap();
 
-		let read_error = unsafe {
-			bindings::JDX_ReadDatasetFromPath(dataset_ptr, path_cstring.as_ptr())
-		};
+		let dataset_ptr = unsafe { jdx::ffi::JDX_AllocDataset() };
+		let read_error = unsafe { jdx::ffi::JDX_ReadDatasetFromPath(dataset_ptr, path_cstring.as_ptr()) };
 
-		let result = match jdx::Error::new_with_path(read_error, path_string) {
-			Some(error) => Err(error),
-			None => Ok(unsafe { &*dataset_ptr }.into())
-		};
-
-		unsafe {
-			bindings::JDX_FreeDataset(dataset_ptr);
+		if let Some(error) = jdx::Error::new_with_path(read_error, path) {
+			return Err(error);
 		}
+
+		return Ok(dataset_ptr.into());
+	}
+}
 
 impl From<*mut jdx::ffi::JDXDataset> for Dataset {
 	fn from(dataset_ptr: *mut jdx::ffi::JDXDataset) -> Self {
