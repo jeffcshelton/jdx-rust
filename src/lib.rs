@@ -1,10 +1,12 @@
 pub mod ffi;
 mod dataset;
 mod header;
+mod image;
 
 use std::{error, fmt, result};
 pub use crate::dataset::*;
 pub use crate::header::*;
+pub use crate::image::*;
 
 pub type Label = ffi::JDXLabel;
 
