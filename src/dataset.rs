@@ -23,6 +23,23 @@ impl Dataset {
 		return Ok(dataset_ptr.into());
 	}
 
+	pub fn write_to_path(&self, path: &str) -> Result<()> {
+		let path_cstring = std::ffi::CString::new(path).unwrap();
+
+		let dataset_ptr = unsafe { self.into_ptr() };
+		let read_error = unsafe { ffi::JDX_WriteDatasetToPath(dataset_ptr, path_cstring.as_ptr()) };
+
+		if let Some(error) = Error::new_with_path(read_error, path) {
+			return Err(error);
+		}
+
+		unsafe {
+			ffi::JDX_FreeDataset(dataset_ptr);
+		}
+
+		return Ok(());
+	}
+
 	pub fn get_image(&self, index: usize) -> Option<Image> {
 		unsafe {
 			let image_ptr = ffi::JDX_GetImage(
