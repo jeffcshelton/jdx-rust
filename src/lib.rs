@@ -1,70 +1,65 @@
 pub mod ffi;
-
 mod dataset;
 mod header;
 
-pub mod jdx {
-	pub use crate::dataset::*;
-	pub use crate::header::*;
-	pub use crate::ffi;
+use std::{error, fmt, result};
+pub use crate::dataset::*;
+pub use crate::header::*;
 
-	use std::{error, fmt, result};
+pub type Label = ffi::JDXLabel;
 
-	pub type Label = ffi::JDXLabel;
+#[derive(Debug, Clone)]
+pub enum Error {
+	OpenFile(String),
+	CloseFile(String),
+	ReadFile(String),
+	WriteFile(String),
+	CorruptFile(String),
 
-	#[derive(Debug, Clone)]
-	pub enum Error {
-		OpenFile(String),
-		CloseFile(String),
-		ReadFile(String),
-		WriteFile(String),
-		CorruptFile(String),
+	MemoryFailure,
 
-		MemoryFailure,
-
-		UnequalWidths,
-		UnequalHeights,
-		UnequalBitDepths,
-	}
-
-	impl Error {
-		pub fn new_with_path(error: ffi::JDXError, path: &str) -> Option<Self> {
-			use ffi::JDXError;
-
-			let path = path.to_owned();
-
-			match error {
-				JDXError::None => None,
-				JDXError::OpenFile => Some(Self::OpenFile(path)),
-				JDXError::CloseFile => Some(Self::CloseFile(path)),
-				JDXError::ReadFile => Some(Self::ReadFile(path)),
-				JDXError::WriteFile => Some(Self::WriteFile(path)),
-				JDXError::CorruptFile => Some(Self::CorruptFile(path)),
-				JDXError::MemoryFailure => Some(Self::MemoryFailure),
-				JDXError::UnequalWidths => Some(Self::UnequalWidths),
-				JDXError::UnequalHeights => Some(Self::UnequalHeights),
-				JDXError::UnequalBitDepths => Some(Self::UnequalBitDepths),
-			}
-		}
-	}
-
-	impl fmt::Display for Error {
-		fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-			match self {
-				Self::OpenFile(path) => write!(f, "Failed to open file: '{}'", path),
-				Self::CloseFile(path) => write!(f, "Failed to close file: '{}'", path),
-				Self::ReadFile(path) => write!(f, "Failed to read file: '{}'", path),
-				Self::WriteFile(path) => write!(f, "Failed to write to file: '{}'", path),
-				Self::CorruptFile(path) => write!(f, "Failed to parse corrupted file: '{}'", path),
-				Self::MemoryFailure => write!(f, "A memory failure has occurred."),
-				Self::UnequalWidths => write!(f, "Datasets have unequal image widths."),
-				Self::UnequalHeights => write!(f, "Datasets have unequal image heights."),
-				Self::UnequalBitDepths => write!(f, "Datasets have unequal bit depths."),
-			}
-		}
-	}
-
-	impl error::Error for Error {}
-
-	pub type Result<T> = result::Result<T, Error>;
+	UnequalWidths,
+	UnequalHeights,
+	UnequalBitDepths,
 }
+
+impl Error {
+	pub fn new_with_path(error: ffi::JDXError, path: &str) -> Option<Self> {
+		use ffi::JDXError;
+
+		let path = path.to_owned();
+
+		match error {
+			JDXError::None => None,
+			JDXError::OpenFile => Some(Self::OpenFile(path)),
+			JDXError::CloseFile => Some(Self::CloseFile(path)),
+			JDXError::ReadFile => Some(Self::ReadFile(path)),
+			JDXError::WriteFile => Some(Self::WriteFile(path)),
+			JDXError::CorruptFile => Some(Self::CorruptFile(path)),
+			JDXError::MemoryFailure => Some(Self::MemoryFailure),
+			JDXError::UnequalWidths => Some(Self::UnequalWidths),
+			JDXError::UnequalHeights => Some(Self::UnequalHeights),
+			JDXError::UnequalBitDepths => Some(Self::UnequalBitDepths),
+		}
+	}
+}
+
+impl fmt::Display for Error {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		match self {
+			Self::OpenFile(path) => write!(f, "Failed to open file: '{}'", path),
+			Self::CloseFile(path) => write!(f, "Failed to close file: '{}'", path),
+			Self::ReadFile(path) => write!(f, "Failed to read file: '{}'", path),
+			Self::WriteFile(path) => write!(f, "Failed to write to file: '{}'", path),
+			Self::CorruptFile(path) => write!(f, "Failed to parse corrupted file: '{}'", path),
+			Self::MemoryFailure => write!(f, "A memory failure has occurred."),
+			Self::UnequalWidths => write!(f, "Datasets have unequal image widths."),
+			Self::UnequalHeights => write!(f, "Datasets have unequal image heights."),
+			Self::UnequalBitDepths => write!(f, "Datasets have unequal bit depths."),
+		}
+	}
+}
+
+impl error::Error for Error {}
+
+pub type Result<T> = result::Result<T, Error>;

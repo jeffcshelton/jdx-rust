@@ -1,7 +1,6 @@
-use libc::c_void;
-
-use crate::jdx::{self, Header};
 use std::{slice, ptr, mem};
+use crate::{Header, ffi};
+use libc::c_void;
 
 #[derive(Clone)]
 pub struct Dataset {
@@ -11,13 +10,13 @@ pub struct Dataset {
 }
 
 impl Dataset {
-	pub fn read_from_path(path: &str) -> jdx::Result<Self> {
+	pub fn read_from_path(path: &str) -> crate::Result<Self> {
 		let path_cstring = std::ffi::CString::new(path).unwrap();
 
-		let dataset_ptr = unsafe { jdx::ffi::JDX_AllocDataset() };
-		let read_error = unsafe { jdx::ffi::JDX_ReadDatasetFromPath(dataset_ptr, path_cstring.as_ptr()) };
+		let dataset_ptr = unsafe { ffi::JDX_AllocDataset() };
+		let read_error = unsafe { ffi::JDX_ReadDatasetFromPath(dataset_ptr, path_cstring.as_ptr()) };
 
-		if let Some(error) = jdx::Error::new_with_path(read_error, path) {
+		if let Some(error) = crate::Error::new_with_path(read_error, path) {
 			return Err(error);
 		}
 
@@ -26,8 +25,8 @@ impl Dataset {
 
 	pub fn get_image(&self, index: usize) -> Option<Image> {
 		unsafe {
-			let image_ptr = jdx::ffi::JDX_GetImage(
-				Into::<*mut jdx::ffi::JDXDataset>::into(self),
+			let image_ptr = ffi::JDX_GetImage(
+				Into::<*mut ffi::JDXDataset>::into(self),
 				index as u64
 			);
 
@@ -40,8 +39,8 @@ impl Dataset {
 	}
 }
 
-impl From<*mut jdx::ffi::JDXDataset> for Dataset {
-	fn from(dataset_ptr: *mut jdx::ffi::JDXDataset) -> Self {
+impl From<*mut ffi::JDXDataset> for Dataset {
+	fn from(dataset_ptr: *mut ffi::JDXDataset) -> Self {
 		unsafe {
 			let dataset = *dataset_ptr;
 
@@ -50,15 +49,15 @@ impl From<*mut jdx::ffi::JDXDataset> for Dataset {
 
 			let image_data = slice::from_raw_parts_mut(
 				dataset._raw_image_data,
-				jdx::ffi::JDX_GetImageSize(dataset.header) * header.image_count as usize,
+				ffi::JDX_GetImageSize(dataset.header) * header.image_count as usize,
 			).to_vec();
 
 			let label_data = slice::from_raw_parts_mut(
 				dataset._raw_labels,
-				mem::size_of::<jdx::ffi::JDXLabel>() * header.image_count as usize,
+				mem::size_of::<ffi::JDXLabel>() * header.image_count as usize,
 			).to_vec();
 
-			jdx::ffi::JDX_FreeDataset(dataset_ptr);
+			ffi::JDX_FreeDataset(dataset_ptr);
 
 			return Self {
 				header: header,
@@ -69,20 +68,20 @@ impl From<*mut jdx::ffi::JDXDataset> for Dataset {
 	}
 }
 
-impl From<&Dataset> for *mut jdx::ffi::JDXDataset {
+impl From<&Dataset> for *mut ffi::JDXDataset {
 	fn from(dataset: &Dataset) -> Self {
-		let header_ptr: *mut jdx::ffi::JDXHeader = (&dataset.header).into();
+		let header_ptr: *mut ffi::JDXHeader = (&dataset.header).into();
 
 		unsafe {
-			let dataset_ptr = jdx::ffi::JDX_AllocDataset();
+			let dataset_ptr = ffi::JDX_AllocDataset();
 
-			*dataset_ptr = jdx::ffi::JDXDataset {
+			*dataset_ptr = ffi::JDXDataset {
 				header: header_ptr,
-				_raw_image_data: jdx::ffi::memdup(
+				_raw_image_data: ffi::memdup(
 					dataset.image_data.as_ptr() as *const c_void,
 					mem::size_of_val(&dataset.image_data as &[u8]
 				)) as *mut u8,
-				_raw_labels: jdx::ffi::memdup(
+				_raw_labels: ffi::memdup(
 					dataset.label_data.as_ptr() as *const c_void,
 					mem::size_of_val(&dataset.label_data as &[u16]
 				)) as *mut u16,
@@ -105,8 +104,8 @@ pub struct Image {
 	pub label_index: u16,
 }
 
-impl From<*mut jdx::ffi::JDXImage> for Image {
-	fn from(image_ptr: *mut jdx::ffi::JDXImage) -> Self {
+impl From<*mut ffi::JDXImage> for Image {
+	fn from(image_ptr: *mut ffi::JDXImage) -> Self {
 		unsafe {
 			let image = *image_ptr;
 
