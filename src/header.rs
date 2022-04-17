@@ -17,6 +17,13 @@ pub struct Header {
 }
 
 impl Header {
+	#[inline]
+	pub fn image_size(&self) -> usize {
+		self.image_width as usize *
+		self.image_height as usize *
+		self.bit_depth as usize / 8
+	}
+
 	pub fn read_from_path(path: &str) -> crate::Result<Self> {
 		let path_cstring = std::ffi::CString::new(path).unwrap();
 		let header_ptr = unsafe { ffi::JDX_AllocHeader() };
