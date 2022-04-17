@@ -1,4 +1,4 @@
-use crate::{Error, ffi, Header, Image, Result};
+use crate::{Error, ffi, Header, Image, Result, ImageIterator};
 use std::{slice, ptr, mem};
 use libc::c_void;
 
@@ -52,6 +52,15 @@ impl Dataset {
 			}
 
 			return Some(image_ptr.into());
+		}
+	}
+
+	pub fn image_iter(&self) -> ImageIterator {
+		ImageIterator {
+			header: &self.header,
+			index: 0,
+			image_data: &self.image_data,
+			label_data: &self.label_data,
 		}
 	}
 
