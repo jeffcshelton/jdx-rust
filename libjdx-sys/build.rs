@@ -1,49 +1,85 @@
-use std::{env, io, path::Path, process::{self, Command}};
+use std::{
+	env,
+	fs,
+	io,
+	path::{Path, PathBuf},
+	process::Command,
+};
 
-fn main() -> Result<(), io::ErrorKind> {
-	env::set_current_dir("./libjdx")
-		.map_err(|_| io::ErrorKind::NotFound)?;
-	
-	let profile = env::var("PROFILE").unwrap();
-	
-	let libjdx_name: &str;
-	let target: &str;
+#[derive(Debug)]
+enum BuildError {
+	EnvVarNotSet(String),
+	IoFailure(io::ErrorKind),
+	GitFailure,
+	TargetUnsupported(String),
+}
 
-	match profile.as_str() {
-		"release" => {
-			libjdx_name = "jdx";
-			target = "libjdx";
-		},
-		"debug" => {
-			libjdx_name = "jdx_debug";
-			target = "debug";
-		},
-		_ => process::exit(1),
+fn main() -> Result<(), BuildError> {
+	let target = env::var("TARGET")
+		.map_err(|_| BuildError::EnvVarNotSet("TARGET".to_owned()))?
+		.to_lowercase();
+
+	let profile = env::var("PROFILE")
+		.map_err(|_| BuildError::EnvVarNotSet("PROFILE".to_owned()))?
+		.to_lowercase();
+
+	if target.contains("windows") {
+		Err(BuildError::TargetUnsupported(target))?;
 	}
 
-	if cfg!(unix) {
+	if !Path::new("./libjdx/libdeflate/lib").exists() {
 		Command::new("git")
 			.args(&["submodule", "update", "--init", "--recursive"])
 			.status()
-			.map_err(|_| io::ErrorKind::NotFound)?;
-
-		Command::new("make")
-			.arg(target)
-			.status()
-			.map_err(|_| io::ErrorKind::NotFound)?;
-	} else if cfg!(windows) {
-		return Err(io::ErrorKind::Unsupported);
-	} else {
-		return Err(io::ErrorKind::Unsupported);
+			.map_err(|_| BuildError::GitFailure)?;
 	}
 
-	let cargo_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-	let libjdx_link_dir = Path::new(&cargo_dir)
-		.join("libjdx")
-		.join("lib");
+	let to_src = |dir_entry: fs::DirEntry| -> Option<PathBuf> {
+		(
+			dir_entry
+				.file_type()
+				.map_or(false, |file_type| file_type.is_file())
 
-	println!("cargo:rustc-link-search={}", libjdx_link_dir.display());
-	println!("cargo:rustc-link-lib=static={}", libjdx_name);
+			&& dir_entry
+				.path()
+				.extension()
+				.and_then(|ext| Some(ext == "c"))
+				.unwrap_or(false)
+		).then(|| dir_entry.path())
+	};
 
-	Ok(())
+	let libjdx_src = fs::read_dir("./libjdx/src")
+		.map_err(|io_error| BuildError::IoFailure(io_error.kind()))?
+		.map(Result::unwrap) // TODO: Consider removing
+		.filter_map(to_src);
+
+	let libdeflate_src = fs::read_dir("./libjdx/libdeflate/lib")
+		.map_err(|io_error| BuildError::IoFailure(io_error.kind()))?
+		.map(Result::unwrap)
+		.filter_map(to_src);
+
+	let mut build = cc::Build::new();
+
+	build
+		.extra_warnings(false)
+		.includes(["./libjdx/include", "./libjdx/libdeflate"])
+		.files(libjdx_src)
+		.files(libdeflate_src)
+		.static_flag(true);
+
+	if profile == "debug" {
+		build
+			.define("DEBUG", None)
+			.debug(true)
+			.flag_if_supported("-fsanitize=address")
+			.opt_level(0);
+	} else if profile == "release" {
+		build
+			.define("RELEASE", None)
+			.force_frame_pointer(false)
+			.opt_level(3);
+	}
+
+	build.compile("jdx");
+	return Ok(());
 }
