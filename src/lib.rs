@@ -1,7 +1,17 @@
-pub mod ffi;
-mod dataset;
-mod header;
-mod image;
+pub mod version;
+pub use version::Version;
+
+pub mod dataset;
+pub use dataset::Dataset;
+
+pub mod header;
+pub use header::Header;
+
+pub mod image;
+pub use image::{
+	Image,
+	ImageIterator,
+};
 
 use std::{error, fmt, result};
 pub use libjdx_sys as ffi;
