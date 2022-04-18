@@ -1,3 +1,3 @@
 [submodule "libjdx"]
-	path = libjdx
+	path = libjdx-sys/libjdx
 	url = https://github.com/jeffreycshelton/libjdx.git
