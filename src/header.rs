@@ -1,8 +1,6 @@
 use libc::{c_char, c_void};
+use crate::{ffi, Version};
 use std::{slice, mem};
-use crate::ffi;
-
-pub type Version = ffi::JDXVersion;
 
 #[derive(Clone)]
 pub struct Header {
@@ -50,7 +48,7 @@ impl From<*mut ffi::JDXHeader> for Header {
 			ffi::JDX_FreeHeader(header_ptr);
 
 			return Self {
-				version: header.version,
+				version: header.version.into(),
 				image_width: header.image_width,
 				image_height: header.image_height,
 				bit_depth: header.bit_depth,
@@ -74,13 +72,13 @@ impl From<&Header> for *mut ffi::JDXHeader {
 				})
 				.collect::<Vec<*mut c_char>>();
 
-			let labels_ptr = ffi::memdup(
+			let labels_ptr = crate::memdup(
 				labels.as_ptr() as *const c_void,
 				mem::size_of_val(&labels as &[*mut c_char]
 			)) as *mut *mut c_char;
 
 			*header_ptr = ffi::JDXHeader {
-				version: header.version,
+				version: header.version.into(),
 				image_count: header.image_count,
 				image_width: header.image_width,
 				image_height: header.image_height,
@@ -91,26 +89,5 @@ impl From<&Header> for *mut ffi::JDXHeader {
 
 			return header_ptr;
 		}
-	}
-}
-
-impl Version {
-	pub fn current() -> Self {
-		unsafe { ffi::JDX_VERSION }
-	}
-}
-
-impl ToString for Version {
-	fn to_string(&self) -> String {
-		let build_type_str = match self.build_type {
-			ffi::JDX_BUILD_DEV => " (dev build)",
-			ffi::JDX_BUILD_ALPHA => "-alpha",
-			ffi::JDX_BUILD_BETA => "-beta",
-			ffi::JDX_BUILD_RC => "-rc",
-			ffi::JDX_BUILD_RELEASE => "",
-			_ => " (invalid build)"
-		};
-		
-		format!("v{}.{}.{}{}", self.major, self.minor, self.patch, build_type_str)
 	}
 }
