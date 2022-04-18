@@ -20,7 +20,6 @@ pub struct JDXVersion {
 }
 
 #[repr(C)]
-#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub enum JDXError {
 	None,
@@ -74,7 +73,7 @@ pub struct JDXImage {
 	pub label_index: u16,
 }
 
-#[allow(dead_code)]
+#[link(name = "jdx", kind = "static")]
 extern "C" {
 	pub static JDX_VERSION: JDXVersion;
 
