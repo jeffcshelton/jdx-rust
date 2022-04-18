@@ -4,9 +4,8 @@ mod header;
 mod image;
 
 use std::{error, fmt, result};
-pub use crate::dataset::*;
-pub use crate::header::*;
-pub use crate::image::*;
+pub use libjdx_sys as ffi;
+use libc::c_void;
 
 pub type Label = ffi::JDXLabel;
 
@@ -65,3 +64,11 @@ impl fmt::Display for Error {
 impl error::Error for Error {}
 
 pub type Result<T> = result::Result<T, Error>;
+
+// TODO: Find a better spot for this function
+pub(crate) unsafe fn memdup(src: *const c_void, size: usize) -> *mut c_void {
+	let block = libc::malloc(size);
+	libc::memcpy(block, src, size);
+
+	return block;
+}

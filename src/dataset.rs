@@ -71,11 +71,11 @@ impl Dataset {
 
 		*dataset_ptr = ffi::JDXDataset {
 			header: header_ptr,
-			_raw_image_data: ffi::memdup(
+			_raw_image_data: crate::memdup(
 				self.image_data.as_ptr() as *const c_void,
 				mem::size_of_val(&self.image_data as &[u8]
 			)) as *mut u8,
-			_raw_labels: ffi::memdup(
+			_raw_labels: crate::memdup(
 				self.label_data.as_ptr() as *const c_void,
 				mem::size_of_val(&self.label_data as &[u16]
 			)) as *mut u16,
