@@ -43,6 +43,24 @@ impl Dataset {
 		}
 	}
 
+	pub fn append(&mut self, dataset: &Dataset) -> Result<()> {
+		let self_ptr = unsafe { self.into_ptr() };
+		let dataset_ptr = unsafe { dataset.into_ptr() };
+
+		let append_error = unsafe { ffi::JDX_AppendDataset(self_ptr, dataset_ptr) };
+
+		if let Some(error) = Error::new_with_path(append_error, "") {
+			return Err(error);
+		}
+
+		unsafe {
+			ffi::JDX_FreeDataset(dataset_ptr);
+		}
+
+		*self = self_ptr.into();
+		return Ok(())
+	}
+
 	pub fn get_image(&self, index: usize) -> Option<Image> {
 		unsafe {
 			let image_ptr = ffi::JDX_GetImage(
