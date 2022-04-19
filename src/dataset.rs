@@ -2,7 +2,7 @@ use crate::{Error, ffi, Header, Image, Result, ImageIterator};
 use std::{slice, ptr, mem};
 use libc::c_void;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Dataset {
 	pub header: Header,
 	image_data: Vec<u8>,

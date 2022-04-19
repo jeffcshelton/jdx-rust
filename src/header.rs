@@ -2,7 +2,7 @@ use libc::{c_char, c_void};
 use crate::{ffi, Version};
 use std::{slice, mem};
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Header {
 	pub version: Version,
 

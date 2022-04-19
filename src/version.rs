@@ -1,6 +1,6 @@
 use crate::ffi;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Version {
 	pub major: u8,
 	pub minor: u8,
@@ -43,7 +43,7 @@ impl From<Version> for ffi::JDXVersion {
 	}
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BuildType {
 	Dev,
 	Alpha,
