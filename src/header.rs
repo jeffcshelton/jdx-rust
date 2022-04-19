@@ -1,6 +1,6 @@
+use std::{mem, path::Path, slice};
 use libc::{c_char, c_void};
 use crate::{ffi, Version};
-use std::{slice, mem};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Header {
@@ -22,7 +22,12 @@ impl Header {
 		self.bit_depth as usize / 8
 	}
 
-	pub fn read_from_path(path: &str) -> crate::Result<Self> {
+	pub fn read_from_path<P: AsRef<Path>>(path: P) -> crate::Result<Self> {
+		let path = path
+			.as_ref()
+			.to_str()
+			.unwrap();
+
 		let path_cstring = std::ffi::CString::new(path).unwrap();
 		let header_ptr = unsafe { ffi::JDX_AllocHeader() };
 		let read_error = unsafe { ffi::JDX_ReadHeaderFromPath(header_ptr, path_cstring.as_ptr()) };

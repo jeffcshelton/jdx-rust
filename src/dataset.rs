@@ -1,5 +1,5 @@
 use crate::{Error, ffi, Header, Image, Result};
-use std::{slice, ptr, mem};
+use std::{slice, path::Path, ptr, mem};
 use libc::c_void;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -10,7 +10,12 @@ pub struct Dataset {
 }
 
 impl Dataset {
-	pub fn read_from_path(path: &str) -> Result<Self> {
+	pub fn read_from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
+		let path = path
+			.as_ref()
+			.to_str()
+			.unwrap();
+
 		let path_cstring = std::ffi::CString::new(path).unwrap();
 
 		let dataset_ptr = unsafe { ffi::JDX_AllocDataset() };
@@ -73,7 +78,12 @@ impl Dataset {
 		return dataset_ptr;
 	}
 
-	pub fn write_to_path(&self, path: &str) -> Result<()> {
+	pub fn write_to_path<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+		let path = path
+			.as_ref()
+			.to_str()
+			.unwrap();
+
 		let path_cstring = std::ffi::CString::new(path).unwrap();
 
 		let dataset_ptr = unsafe { self.into_ptr() };
