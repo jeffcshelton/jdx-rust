@@ -1,4 +1,4 @@
-use crate::{ffi, Header};
+use crate::ffi;
 use std::slice;
 
 #[derive(Clone)]
@@ -39,41 +39,5 @@ impl From<*mut ffi::JDXImage> for Image {
 				label_index: image.label_num,
 			};
 		}
-	}
-}
-
-pub struct ImageIterator<'a> {
-	pub(crate) header: &'a Header,
-
-	pub(crate) index: usize,
-	pub(crate) image_data: &'a [u8],
-	pub(crate) label_data: &'a [u16],
-}
-
-impl<'a> Iterator for ImageIterator<'a> {
-	type Item = Image;
-
-	fn next(&mut self) -> Option<Image> {
-		if self.index >= self.header.image_count as usize {
-			return None;
-		}
-		
-		let image_size = self.header.image_size();
-		let start_data = self.index * image_size;
-		let end_data = start_data + image_size;
-
-		let raw_data = self.image_data[start_data..end_data].to_vec();
-		let label_index = self.label_data[self.index];
-
-		self.index += 1;
-
-		return Some(Image {
-			raw_data: raw_data,
-			width: self.header.image_width,
-			height: self.header.image_height,
-			bit_depth: self.header.bit_depth,
-			label: self.header.labels[label_index as usize].clone(),
-			label_index: label_index,
-		});
 	}
 }

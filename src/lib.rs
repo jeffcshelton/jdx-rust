@@ -2,16 +2,16 @@ pub mod version;
 pub use version::Version;
 
 pub mod dataset;
-pub use dataset::Dataset;
+pub use dataset::{
+	Dataset,
+	ImageIterator,
+};
 
 pub mod header;
 pub use header::Header;
 
 pub mod image;
-pub use image::{
-	Image,
-	ImageIterator,
-};
+pub use image::Image;
 
 #[cfg(test)]
 mod tests;

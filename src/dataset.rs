@@ -1,4 +1,4 @@
-use crate::{Error, ffi, Header, Image, Result, ImageIterator};
+use crate::{Error, ffi, Header, Image, Result};
 use std::{slice, ptr, mem};
 use libc::c_void;
 
@@ -47,6 +47,14 @@ impl Dataset {
 		self.header.clone()
 	}
 
+	#[inline]
+	pub fn iter(&self) -> ImageIterator {
+		ImageIterator {
+			dataset: self,
+			index: 0,
+		}
+	}
+
 	pub fn get_image(&self, index: usize) -> Option<Image> {
 		unsafe {
 			let image_ptr = ffi::JDX_GetImage(
@@ -59,15 +67,6 @@ impl Dataset {
 			}
 
 			return Some(image_ptr.into());
-		}
-	}
-
-	pub fn image_iter(&self) -> ImageIterator {
-		ImageIterator {
-			header: &self.header,
-			index: 0,
-			image_data: &self.image_data,
-			label_data: &self.label_data,
 		}
 	}
 
@@ -118,5 +117,42 @@ impl From<*mut ffi::JDXDataset> for Dataset {
 				label_data: label_data,
 			};
 		}
+	}
+}
+
+pub struct ImageIterator<'a> {
+	dataset: &'a Dataset,
+	index: usize,
+}
+
+impl Iterator for ImageIterator<'_> {
+	type Item = Image;
+
+	fn next(&mut self) -> Option<Image> {
+		if self.index >= self.len() {
+			return None;
+		}
+
+		let image_size = self.dataset.header.image_size();
+		let start_data = self.index * image_size;
+		let end_data = start_data + image_size;
+
+		let raw_data = self.dataset.image_data[start_data..end_data].to_vec();
+		let label_index = self.dataset.label_data[self.index];
+
+		return Some(Image {
+			raw_data: raw_data,
+			width: self.dataset.header.image_width,
+			height: self.dataset.header.image_height,
+			bit_depth: self.dataset.header.bit_depth,
+			label: self.dataset.header.labels[label_index as usize].clone(),
+			label_index: label_index,
+		});
+	}
+}
+
+impl ExactSizeIterator for ImageIterator<'_> {
+	fn len(&self) -> usize {
+		self.dataset.header.image_count as usize
 	}
 }
