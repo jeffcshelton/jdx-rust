@@ -42,6 +42,7 @@ impl Dataset {
 }
 
 impl Dataset {
+	#[inline]
 	pub fn header(&self) -> Header {
 		self.header.clone()
 	}
