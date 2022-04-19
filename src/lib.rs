@@ -13,6 +13,9 @@ pub use image::{
 	ImageIterator,
 };
 
+#[cfg(test)]
+mod tests;
+
 use std::{error, fmt, result};
 pub use libjdx_sys as ffi;
 use libc::c_void;
