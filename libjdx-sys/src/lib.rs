@@ -85,17 +85,17 @@ extern "C" {
 
 	pub fn JDX_GetImageSize(header: *const JDXHeader) -> usize;
 
-	pub fn JDX_ReadHeaderFromPath(dest: *mut JDXHeader, path: *const i8) -> JDXError;
+	pub fn JDX_ReadHeaderFromPath(dest: *mut JDXHeader, path: *const c_char) -> JDXError;
 
 	pub fn JDX_AllocDataset() -> *mut JDXDataset;
 	pub fn JDX_FreeDataset(dataset: *mut JDXDataset);
 	pub fn JDX_CopyDataset(dest: *mut JDXDataset, src: *const JDXDataset);
-	pub fn JDX_AppendDataset(dest: *mut JDXDataset, src: *const JDXDataset);
+	pub fn JDX_AppendDataset(dest: *mut JDXDataset, src: *const JDXDataset) -> JDXError;
 
 	pub fn JDX_GetImage(dataset: *const JDXDataset, index: u64) -> *mut JDXImage;
 
-	pub fn JDX_ReadDatasetFromPath(dest: *mut JDXDataset, path: *const i8) -> JDXError;
-	pub fn JDX_WriteDatasetToPath(dataset: *const JDXDataset, path: *const i8) -> JDXError;
+	pub fn JDX_ReadDatasetFromPath(dest: *mut JDXDataset, path: *const c_char) -> JDXError;
+	pub fn JDX_WriteDatasetToPath(dataset: *const JDXDataset, path: *const c_char) -> JDXError;
 
 	pub fn JDX_FreeImage(image: *mut JDXImage);
 }
