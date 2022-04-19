@@ -4,7 +4,7 @@ use libc::c_void;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Dataset {
-	pub header: Header,
+	header: Header,
 	image_data: Vec<u8>,
 	label_data: Vec<u16>,
 }
@@ -38,6 +38,12 @@ impl Dataset {
 		}
 
 		return Ok(());
+	}
+}
+
+impl Dataset {
+	pub fn header(&self) -> Header {
+		self.header.clone()
 	}
 
 	pub fn get_image(&self, index: usize) -> Option<Image> {
