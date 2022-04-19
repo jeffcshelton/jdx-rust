@@ -21,10 +21,9 @@ impl From<*mut ffi::JDXImage> for Image {
 			let data_size =
 				image.width as usize *
 				image.height as usize *
-				image.bit_depth as usize;
+				image.bit_depth as usize / 8;
 
 			let raw_data = slice::from_raw_parts_mut(image.raw_data, data_size).to_vec();
-
 			let label = std::ffi::CStr::from_ptr(image.label_str as *mut i8)
 				.to_str()
 				.unwrap()
