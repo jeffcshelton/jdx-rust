@@ -56,7 +56,7 @@ pub struct JDXHeader {
 pub struct JDXDataset {
 	pub header: *mut JDXHeader,
 	
-	pub _raw_labels: *mut u16,
+	pub _raw_labels: *mut JDXLabel,
 	pub _raw_image_data: *mut u8,
 }
 
@@ -69,8 +69,8 @@ pub struct JDXImage {
 	pub height: u16,
 	pub bit_depth: u8,
 
-	pub label: *mut c_char,
-	pub label_index: u16,
+	pub label_str: *mut c_char,
+	pub label_num: JDXLabel,
 }
 
 #[link(name = "jdx", kind = "static")]
