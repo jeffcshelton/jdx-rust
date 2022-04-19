@@ -71,7 +71,7 @@ fn main() -> Result<(), BuildError> {
 		build
 			.define("DEBUG", None)
 			.debug(true)
-			.flag_if_supported("-fsanitize=address")
+			// .flag_if_supported("-fsanitize=address")
 			.opt_level(0);
 	} else if profile == "release" {
 		build
