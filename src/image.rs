@@ -1,7 +1,7 @@
 use crate::ffi;
 use std::slice;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Image {
 	pub raw_data: Vec<u8>,
 
