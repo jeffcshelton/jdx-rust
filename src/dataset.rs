@@ -100,7 +100,7 @@ impl From<*mut ffi::JDXDataset> for Dataset {
 
 			let label_data = slice::from_raw_parts_mut(
 				dataset._raw_labels,
-				mem::size_of::<ffi::JDXLabel>() * header.image_count as usize,
+				header.image_count as usize,
 			).to_vec();
 
 			ffi::JDX_FreeDataset(dataset_ptr);
