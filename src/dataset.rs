@@ -1,6 +1,6 @@
 use std::{
 	fs::File,
-	io::{Read, Seek, SeekFrom, Write},
+	io::{Read, Write},
 	path::Path,
 	mem,
 };
@@ -34,10 +34,12 @@ impl Dataset {
 	pub fn read_from_file(file: &mut File) -> Result<Self> {
 		let header = Header::read_from_file(file)?;
 
-		file.seek(SeekFrom::Current(8))?;
+		let mut body_size_bytes = [0_u8; 8];
+		file.read_exact(&mut body_size_bytes)?;
+		let body_size = u64::from_le_bytes(body_size_bytes) as usize;
 
 		let mut decoder = DeflateDecoder::new(file);
-		let mut decompressed_data = Vec::new();
+		let mut decompressed_data = Vec::with_capacity(body_size);
 		decoder.read_to_end(&mut decompressed_data)?;
 
 		Ok(Self {
