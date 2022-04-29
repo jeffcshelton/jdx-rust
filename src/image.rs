@@ -1,6 +1,3 @@
-use crate::ffi;
-use std::slice;
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Image {
 	pub raw_data: Vec<u8>,
@@ -13,30 +10,27 @@ pub struct Image {
 	pub label_index: u16,
 }
 
-impl From<*mut ffi::JDXImage> for Image {
-	fn from(image_ptr: *mut ffi::JDXImage) -> Self {
-		unsafe {
-			let image = *image_ptr;
+#[derive(Debug, Eq, PartialEq)]
+pub struct Img<'a> {
+	pub raw_data: &'a [u8],
 
-			let data_size =
-				image.width as usize *
-				image.height as usize *
-				image.bit_depth as usize / 8;
+	pub width: u16,
+	pub height: u16,
+	pub bit_depth: u8,
 
-			let raw_data = slice::from_raw_parts_mut(image.raw_data, data_size).to_vec();
-			let label = std::ffi::CStr::from_ptr(image.label_str as *mut i8)
-				.to_str()
-				.unwrap()
-				.to_owned();
+	pub label: &'a str,
+	pub label_index: u16,
+}
 
-			return Self {
-				raw_data: raw_data,
-				width: image.width,
-				height: image.height,
-				bit_depth: image.bit_depth,
-				label: label,
-				label_index: image.label_num,
-			};
+impl Img<'_> {
+	pub fn to_owned(&self) -> Image {
+		Image {
+			raw_data: self.raw_data.to_vec(),
+			width: self.width,
+			height: self.height,
+			bit_depth: self.bit_depth,
+			label: self.label.to_owned(),
+			label_index: self.label_index,
 		}
 	}
 }

@@ -1,4 +1,5 @@
-use crate::ffi;
+use std::{fs::File, path::Path, io::{Read, Write}};
+use crate::{Result, Error};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Version {
@@ -9,37 +10,47 @@ pub struct Version {
 }
 
 impl Version {
+	pub fn read_from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
+		Self::read_from_file(&mut File::open(path)?)
+	}
+
+	pub fn read_from_file(file: &mut File) -> Result<Self> {
+		let mut version_buffer = [0x00; 4];
+		file.read_exact(&mut version_buffer)?;
+
+		Ok(Self {
+			major: version_buffer[0],
+			minor: version_buffer[1],
+			patch: version_buffer[2],
+			build_type: BuildType::from_u8(version_buffer[3])?
+		})
+	}
+}
+
+impl Version {
 	#[inline]
 	pub fn current() -> Self {
-		unsafe { ffi::JDX_VERSION }.into()
+		Self {
+			major: 0,
+			minor: 4,
+			patch: 0,
+			build_type: BuildType::Dev,
+		}
+	}
+
+	pub fn write_to_file(&self, file: &mut File) -> Result<()> {
+		file.write_all(&self.major.to_le_bytes())?;
+		file.write_all(&self.minor.to_le_bytes())?;
+		file.write_all(&self.patch.to_le_bytes())?;
+		file.write_all(&self.build_type.to_u8().to_le_bytes())?;
+
+		Ok(())
 	}
 }
 
 impl ToString for Version {
 	fn to_string(&self) -> String {
 		format!("v{}.{}.{}{}", self.major, self.minor, self.patch, self.build_type.postfix())
-	}
-}
-
-impl From<ffi::JDXVersion> for Version {
-	fn from(version: ffi::JDXVersion) -> Self {
-		Self {
-			major: version.major,
-			minor: version.minor,
-			patch: version.patch,
-			build_type: version.build_type.into(),
-		}
-	}
-}
-
-impl From<Version> for ffi::JDXVersion {
-	fn from(version: Version) -> Self {
-		Self {
-			major: version.major,
-			minor: version.minor,
-			patch: version.patch,
-			build_type: version.build_type.into_int(),
-		}
 	}
 }
 
@@ -50,7 +61,6 @@ pub enum BuildType {
 	Beta,
 	Rc,
 	Release,
-	CorruptBuild,
 }
 
 impl BuildType {
@@ -61,31 +71,29 @@ impl BuildType {
 			Self::Beta => "-beta",
 			Self::Rc => "-rc",
 			Self::Release => "",
-			Self::CorruptBuild => " (corrupt build)",
 		}.to_owned()
 	}
 
-	pub fn into_int(&self) -> u8 {
+	pub fn to_u8(&self) -> u8 {
 		match self {
-			Self::Dev => ffi::JDX_BUILD_DEV,
-			Self::Alpha => ffi::JDX_BUILD_ALPHA,
-			Self::Beta => ffi::JDX_BUILD_BETA,
-			Self::Rc => ffi::JDX_BUILD_RC,
-			Self::Release => ffi::JDX_BUILD_RELEASE,
-			Self::CorruptBuild => 255,
+			Self::Dev => 0,
+			Self::Alpha => 1,
+			Self::Beta => 2,
+			Self::Rc => 3,
+			Self::Release => 4,
 		}
 	}
 }
 
-impl From<u8> for BuildType {
-	fn from(build_type: u8) -> Self {
-		match build_type {
-			ffi::JDX_BUILD_DEV => Self::Dev,
-			ffi::JDX_BUILD_ALPHA => Self::Alpha,
-			ffi::JDX_BUILD_BETA => Self::Beta,
-			ffi::JDX_BUILD_RC => Self::Rc,
-			ffi::JDX_BUILD_RELEASE => Self::Release,
-			_ => Self::CorruptBuild
-		}
+impl BuildType {
+	pub fn from_u8(raw: u8) -> Result<Self> {
+		Ok(match raw {
+			0 => Self::Dev,
+			1 => Self::Alpha,
+			2 => Self::Beta,
+			3 => Self::Rc,
+			4 => Self::Release,
+			_ => Err(Error::CorruptFile)?,
+		})
 	}
 }
