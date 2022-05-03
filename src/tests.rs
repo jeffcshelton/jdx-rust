@@ -44,7 +44,7 @@ fn extend_dataset() -> Result<()> {
 fn read_header() -> Result<()> {
 	let header = Header::read_from_path(EXAMPLE_PATH)?;
 
-	assert_eq!(header.version, Version::current());
+	assert!(header.version.is_compatible(Version::current()));
 	assert_eq!(header.bit_depth, 24);
 	assert_eq!(header.image_width, 52);
 	assert_eq!(header.image_height, 52);

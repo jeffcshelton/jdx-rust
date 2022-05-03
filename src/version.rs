@@ -38,6 +38,15 @@ impl Version {
 		}
 	}
 
+	pub fn is_compatible(&self, other: Version) -> bool {
+		if self.major == 0 {
+				self.major == other.major
+				&& self.minor == other.minor
+		} else {
+			self.major == other.major
+		}
+	}
+
 	pub fn write_to_file(&self, file: &mut File) -> Result<()> {
 		file.write_all(&self.major.to_le_bytes())?;
 		file.write_all(&self.minor.to_le_bytes())?;
