@@ -38,7 +38,7 @@ impl Version {
 		}
 	}
 
-	pub fn is_compatible(&self, other: Version) -> bool {
+	pub fn is_compatible_with(&self, other: Version) -> bool {
 		if self.major == 0 {
 				self.major == other.major
 				&& self.minor == other.minor
