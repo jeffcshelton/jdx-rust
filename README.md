@@ -8,7 +8,7 @@ jdx-rust is not yet listed on [crates.io](https://crates.io), Rust's official cr
 
 ```toml
 [dependencies]
-jdx-rust = { git = "https://github.com/jeffreycshelton/jdx-rust", tag="v0.3.0-alpha" }
+jdx-rust = { git = "https://github.com/jeffreycshelton/jdx-rust", tag="v0.4.0" }
 ```
 
 ## Examples

@@ -34,7 +34,7 @@ impl Version {
 			major: 0,
 			minor: 4,
 			patch: 0,
-			build_type: BuildType::Dev,
+			build_type: BuildType::Release,
 		}
 	}
 
