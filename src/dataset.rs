@@ -70,12 +70,8 @@ impl Dataset {
 	}
 
 	pub fn append(&mut self, mut dataset: Dataset) -> Result<()> {
-		if self.header.image_width != dataset.header.image_width {
-			return Err(Error::UnequalWidths);
-		} else if self.header.image_height != dataset.header.image_height {
-			return Err(Error::UnequalHeights);
-		} else if self.header.bit_depth != dataset.header.bit_depth {
-			return Err(Error::UnequalBitDepths);
+		if !self.header.is_compatible_with(&dataset.header) {
+			return Err(Error::IncompatibleHeaders);
 		}
 
 		self.header.image_count += dataset.header.image_count;
@@ -86,12 +82,8 @@ impl Dataset {
 	}
 
 	pub fn extend(&mut self, dataset: &Dataset) -> Result<()> {
-		if self.header.image_width != dataset.header.image_width {
-			return Err(Error::UnequalWidths);
-		} else if self.header.image_height != dataset.header.image_height {
-			return Err(Error::UnequalHeights);
-		} else if self.header.bit_depth != dataset.header.bit_depth {
-			return Err(Error::UnequalBitDepths);
+		if !self.header.is_compatible_with(&dataset.header) {
+			return Err(Error::IncompatibleHeaders);
 		}
 
 		// TODO: Do label correction & add test
@@ -132,12 +124,10 @@ impl Dataset {
 	}
 
 	pub fn push(&mut self, image: Image) -> Result<()> {
-		if self.header.image_width != image.width {
-			return Err(Error::UnequalWidths);
-		} else if self.header.image_height != image.height {
-			return Err(Error::UnequalHeights);
-		} else if self.header.bit_depth != image.bit_depth {
-			return Err(Error::UnequalBitDepths);
+		if self.header.image_width != image.width
+		|| self.header.image_height != image.height
+		|| self.header.bit_depth != image.bit_depth {
+			return Err(Error::IncompatibleHeaders);
 		}
 
 		let label_index = self.header.labels

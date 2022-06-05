@@ -67,6 +67,12 @@ impl Header {
 }
 
 impl Header {
+	pub fn is_compatible_with(&self, other: &Header) -> bool {
+		self.image_width == other.image_width
+		&& self.image_height == other.image_height
+		&& self.bit_depth == other.bit_depth
+	}
+
 	pub fn write_to_file(&self, file: &mut File) -> Result<()> {
 		file.write_all(b"JDX")?;
 		self.version.write_to_file(file)?;
