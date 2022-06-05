@@ -35,7 +35,7 @@ fn extend_dataset() -> Result<()> {
 	copy.extend(&EXAMPLE_DATASET)?;
 
 	assert_eq!(copy.header().image_count, EXAMPLE_DATASET.header().image_count * 2);
-	assert_eq!(copy.get_img(0), copy.get_img(EXAMPLE_DATASET.header().image_count as usize));
+	assert_eq!(copy.get_image(0), copy.get_image(EXAMPLE_DATASET.header().image_count as usize));
 
 	return Ok(());
 }

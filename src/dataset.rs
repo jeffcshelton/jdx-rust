@@ -15,7 +15,6 @@ use crate::{
 	Error,
 	Header,
 	Image,
-	Img,
 	Label,
 	Result,
 };
@@ -102,7 +101,7 @@ impl Dataset {
 		Ok(())
 	}
 
-	pub fn get_img(&self, index: usize) -> Option<Img> {
+	pub fn get_image(&self, index: usize) -> Option<Image> {
 		if index >= self.header.image_count {
 			return None;
 		}
@@ -122,7 +121,7 @@ impl Dataset {
 				.unwrap()
 		);
 
-		Some(Img {
+		Some(Image {
 			raw_data: image_data,
 			width: self.header.image_width,
 			height: self.header.image_height,
@@ -132,7 +131,7 @@ impl Dataset {
 		})
 	}
 
-	pub fn push(&mut self, mut image: Image) -> Result<()> {
+	pub fn push(&mut self, image: Image) -> Result<()> {
 		if self.header.image_width != image.width {
 			return Err(Error::UnequalWidths);
 		} else if self.header.image_height != image.height {
@@ -145,11 +144,11 @@ impl Dataset {
 			.iter()
 			.position(|label| label == &image.label)
 			.unwrap_or_else(|| {
-				self.header.labels.push(image.label);
+				self.header.labels.push(image.label.to_owned());
 				self.header.labels.len() - 1
 			}) as u16; // TODO: Remove as and replace with explicit check
 
-		self.raw_data.append(&mut image.raw_data);
+		self.raw_data.append(&mut image.raw_data.to_vec());
 		self.raw_data.extend(&label_index.to_le_bytes());
 		self.header.image_count += 1;
 
@@ -180,12 +179,12 @@ pub struct ImgIterator<'a> {
 }
 
 impl<'a> Iterator for ImgIterator<'a> {
-	type Item = Img<'a>;
+	type Item = Image<'a>;
 
-	fn next(&mut self) -> Option<Img<'a>> {
+	fn next(&mut self) -> Option<Image<'a>> {
 		self.index += 1;
 
-		self.dataset.get_img(self.index - 1)
+		self.dataset.get_image(self.index - 1)
 	}
 }
 
