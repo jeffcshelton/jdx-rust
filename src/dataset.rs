@@ -1,185 +1,194 @@
-use crate::{Error, ffi, Header, Image, Result};
-use std::{slice, path::Path, ptr, mem};
-use libc::c_void;
+use std::{
+	fs::File,
+	io::{Read, Write},
+	path::Path,
+	mem,
+};
+
+use flate2::{
+	Compression,
+	read::DeflateDecoder,
+	write::DeflateEncoder,
+};
+
+use crate::{
+	Error,
+	Header,
+	Image,
+	Label,
+	Result,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Dataset {
 	header: Header,
-	image_data: Vec<u8>,
-	label_data: Vec<u16>,
+	raw_data: Vec<u8>,
 }
 
 impl Dataset {
 	pub fn read_from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
-		let path = path
-			.as_ref()
-			.to_str()
-			.unwrap();
+		Self::read_from_file(&mut File::open(path)?)
+	}
 
-		let path_cstring = std::ffi::CString::new(path).unwrap();
+	pub fn read_from_file(file: &mut File) -> Result<Self> {
+		let header = Header::read_from_file(file)?;
 
-		let dataset_ptr = unsafe { ffi::JDX_AllocDataset() };
-		let read_error = unsafe { ffi::JDX_ReadDatasetFromPath(dataset_ptr, path_cstring.as_ptr()) };
+		let mut body_size_bytes = [0_u8; 8];
+		file.read_exact(&mut body_size_bytes)?;
+		let body_size = u64::from_le_bytes(body_size_bytes) as usize;
 
-		if let Some(error) = Error::new_with_path(read_error, path) {
-			return Err(error);
+		let mut decoder = DeflateDecoder::new(file);
+		let mut decompressed_data = Vec::with_capacity(body_size);
+		decoder.read_to_end(&mut decompressed_data)?;
+
+		Ok(Self {
+			header: header,
+			raw_data: decompressed_data,
+		})
+	}
+
+	pub fn with_header(header: Header) -> Self {
+		Self {
+			header: header,
+			raw_data: Vec::new(),
 		}
-
-		return Ok(dataset_ptr.into());
 	}
 }
 
 impl Dataset {
 	#[inline]
-	pub fn header(&self) -> Header {
-		self.header.clone()
+	pub fn header(&self) -> &Header {
+		&self.header
 	}
 
 	#[inline]
-	pub fn iter(&self) -> ImageIterator {
-		ImageIterator {
+	pub fn iter(&self) -> ImgIterator {
+		ImgIterator {
 			dataset: self,
 			index: 0,
 		}
 	}
 
-	pub fn append(&mut self, dataset: &Dataset) -> Result<()> {
-		let self_ptr = unsafe { self.into_ptr() };
-		let dataset_ptr = unsafe { dataset.into_ptr() };
-
-		let append_error = unsafe { ffi::JDX_AppendDataset(self_ptr, dataset_ptr) };
-
-		if let Some(error) = Error::new_with_path(append_error, "") {
-			return Err(error);
+	pub fn append(&mut self, mut dataset: Dataset) -> Result<()> {
+		if self.header.image_width != dataset.header.image_width {
+			return Err(Error::UnequalWidths);
+		} else if self.header.image_height != dataset.header.image_height {
+			return Err(Error::UnequalHeights);
+		} else if self.header.bit_depth != dataset.header.bit_depth {
+			return Err(Error::UnequalBitDepths);
 		}
 
-		unsafe {
-			ffi::JDX_FreeDataset(dataset_ptr);
+		self.header.image_count += dataset.header.image_count;
+
+		// TODO: Do label correction & add test
+		self.raw_data.append(&mut dataset.raw_data);
+		Ok(())
+	}
+
+	pub fn extend(&mut self, dataset: &Dataset) -> Result<()> {
+		if self.header.image_width != dataset.header.image_width {
+			return Err(Error::UnequalWidths);
+		} else if self.header.image_height != dataset.header.image_height {
+			return Err(Error::UnequalHeights);
+		} else if self.header.bit_depth != dataset.header.bit_depth {
+			return Err(Error::UnequalBitDepths);
 		}
 
-		*self = self_ptr.into();
-		return Ok(())
+		// TODO: Do label correction & add test
+		self.raw_data.extend(dataset.raw_data.iter());
+		self.header.image_count += dataset.header.image_count;
+
+		Ok(())
 	}
 
 	pub fn get_image(&self, index: usize) -> Option<Image> {
-		unsafe {
-			let image_ptr = ffi::JDX_GetImage(
-				self.into_ptr(),
-				index as u64
-			);
-
-			if image_ptr.is_null() {
-				return None;
-			}
-
-			return Some(image_ptr.into());
+		if index >= self.header.image_count {
+			return None;
 		}
+
+		let image_size = self.header.image_size();
+		let label_size = mem::size_of::<Label>();
+		let block_size = image_size + label_size;
+
+		let start_block = index * block_size;
+		let end_image = start_block + image_size;
+		let end_label = end_image + label_size;
+
+		let image_data = &self.raw_data[start_block..end_image];
+		let label_index = Label::from_le_bytes(
+			self.raw_data[end_image..end_label]
+				.try_into()
+				.unwrap()
+		);
+
+		Some(Image {
+			raw_data: image_data,
+			width: self.header.image_width,
+			height: self.header.image_height,
+			bit_depth: self.header.bit_depth,
+			label: self.header.labels.get(label_index as usize).unwrap(),
+			label_index: label_index,
+		})
 	}
 
-	pub unsafe fn into_ptr(&self) -> *mut ffi::JDXDataset {
-		let header_ptr: *mut ffi::JDXHeader = (&self.header).into();
+	pub fn push(&mut self, image: Image) -> Result<()> {
+		if self.header.image_width != image.width {
+			return Err(Error::UnequalWidths);
+		} else if self.header.image_height != image.height {
+			return Err(Error::UnequalHeights);
+		} else if self.header.bit_depth != image.bit_depth {
+			return Err(Error::UnequalBitDepths);
+		}
 
-		let dataset_ptr = ffi::JDX_AllocDataset();
+		let label_index = self.header.labels
+			.iter()
+			.position(|label| label == &image.label)
+			.unwrap_or_else(|| {
+				self.header.labels.push(image.label.to_owned());
+				self.header.labels.len() - 1
+			}) as u16; // TODO: Remove as and replace with explicit check
 
-		*dataset_ptr = ffi::JDXDataset {
-			header: header_ptr,
-			_raw_image_data: crate::memdup(
-				self.image_data.as_ptr() as *const c_void,
-				mem::size_of_val(&self.image_data as &[u8]
-			)) as *mut u8,
-			_raw_labels: crate::memdup(
-				self.label_data.as_ptr() as *const c_void,
-				mem::size_of_val(&self.label_data as &[u16]
-			)) as *mut u16,
-		};
+		self.raw_data.append(&mut image.raw_data.to_vec());
+		self.raw_data.extend(&label_index.to_le_bytes());
+		self.header.image_count += 1;
 
-		return dataset_ptr;
+		Ok(())
 	}
 
 	pub fn write_to_path<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-		let path = path
-			.as_ref()
-			.to_str()
-			.unwrap();
+		self.write_to_file(&mut File::create(path)?)
+	}
 
-		let path_cstring = std::ffi::CString::new(path).unwrap();
+	pub fn write_to_file(&self, file: &mut File) -> Result<()> {
+		self.header.write_to_file(file)?;
 
-		let dataset_ptr = unsafe { self.into_ptr() };
-		let read_error = unsafe { ffi::JDX_WriteDatasetToPath(dataset_ptr, path_cstring.as_ptr()) };
+		let mut compressed_buffer = Vec::new();
+		DeflateEncoder::new(&mut compressed_buffer, Compression::new(9))
+			.write_all(&self.raw_data)?;
 
-		if let Some(error) = Error::new_with_path(read_error, path) {
-			return Err(error);
-		}
+		file.write_all(&(compressed_buffer.len() as u64).to_le_bytes())?;
+		file.write_all(&compressed_buffer)?;
 
-		unsafe {
-			ffi::JDX_FreeDataset(dataset_ptr);
-		}
-
-		return Ok(());
+		Ok(())
 	}
 }
 
-impl From<*mut ffi::JDXDataset> for Dataset {
-	fn from(dataset_ptr: *mut ffi::JDXDataset) -> Self {
-		unsafe {
-			let dataset = *dataset_ptr;
-
-			let header: Header = dataset.header.into();
-			(*dataset_ptr).header = ptr::null_mut();
-
-			let image_data = slice::from_raw_parts_mut(
-				dataset._raw_image_data,
-				ffi::JDX_GetImageSize(dataset.header) * header.image_count as usize,
-			).to_vec();
-
-			let label_data = slice::from_raw_parts_mut(
-				dataset._raw_labels,
-				header.image_count as usize,
-			).to_vec();
-
-			ffi::JDX_FreeDataset(dataset_ptr);
-
-			return Self {
-				header: header,
-				image_data: image_data,
-				label_data: label_data,
-			};
-		}
-	}
-}
-
-pub struct ImageIterator<'a> {
+pub struct ImgIterator<'a> {
 	dataset: &'a Dataset,
 	index: usize,
 }
 
-impl Iterator for ImageIterator<'_> {
-	type Item = Image;
+impl<'a> Iterator for ImgIterator<'a> {
+	type Item = Image<'a>;
 
-	fn next(&mut self) -> Option<Image> {
-		if self.index >= self.len() {
-			return None;
-		}
+	fn next(&mut self) -> Option<Image<'a>> {
+		self.index += 1;
 
-		let image_size = self.dataset.header.image_size();
-		let start_data = self.index * image_size;
-		let end_data = start_data + image_size;
-
-		let raw_data = self.dataset.image_data[start_data..end_data].to_vec();
-		let label_index = self.dataset.label_data[self.index];
-
-		return Some(Image {
-			raw_data: raw_data,
-			width: self.dataset.header.image_width,
-			height: self.dataset.header.image_height,
-			bit_depth: self.dataset.header.bit_depth,
-			label: self.dataset.header.labels[label_index as usize].clone(),
-			label_index: label_index,
-		});
+		self.dataset.get_image(self.index - 1)
 	}
 }
 
-impl ExactSizeIterator for ImageIterator<'_> {
+impl ExactSizeIterator for ImgIterator<'_> {
 	fn len(&self) -> usize {
 		self.dataset.header.image_count as usize
 	}

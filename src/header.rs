@@ -1,6 +1,5 @@
-use std::{mem, path::Path, slice};
-use libc::{c_char, c_void};
-use crate::{ffi, Version};
+use std::{fs::File, path::Path, io::{Read, Write}, ops::Add};
+use crate::{Error, Result, Version};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Header {
@@ -9,7 +8,7 @@ pub struct Header {
 	pub image_width: u16,
 	pub image_height: u16,
 	pub bit_depth: u8,
-	pub image_count: u64,
+	pub image_count: usize,
 
 	pub labels: Vec<String>,
 }
@@ -22,77 +21,74 @@ impl Header {
 		self.bit_depth as usize / 8
 	}
 
-	pub fn read_from_path<P: AsRef<Path>>(path: P) -> crate::Result<Self> {
-		let path = path
-			.as_ref()
-			.to_str()
-			.unwrap();
+	pub fn read_from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
+		Self::read_from_file(&mut File::open(path)?)
+	}
 
-		let path_cstring = std::ffi::CString::new(path).unwrap();
-		let header_ptr = unsafe { ffi::JDX_AllocHeader() };
-		let read_error = unsafe { ffi::JDX_ReadHeaderFromPath(header_ptr, path_cstring.as_ptr()) };
+	pub fn read_from_file(file: &mut File) -> Result<Self> {
+		let mut corruption_check = [0x00; 3];
+		file.read_exact(&mut corruption_check)?;
 
-		if let Some(error) = crate::Error::new_with_path(read_error, path) {
-			return Err(error);
+		if &corruption_check != b"JDX" { // Corresponds to "JDX"
+			return Err(Error::CorruptFile);
 		}
 
-		return Ok(header_ptr.into());
+		let version = Version::read_from_file(file)?;
+
+		let mut raw_buffer = [0x00; 17]; // TODO: Rename better
+		file.read_exact(&mut raw_buffer)?;
+
+		let label_bytes = u32::from_le_bytes(
+			raw_buffer[5..9]
+				.try_into()
+				.unwrap()
+		);
+
+		let mut raw_labels = vec![0_u8; label_bytes as usize];
+		file.read_exact(&mut raw_labels)?;
+
+		// TODO: Add check & filter for zero-length strings
+		let labels = raw_labels
+			.split(|&byte| byte == 0)
+			.filter_map(|byte_str| std::str::from_utf8(byte_str).ok())
+			.map(str::to_owned)
+			.filter(|label| !label.is_empty())
+			.collect();
+
+		return Ok(Self {
+			version: version,
+			image_width: u16::from_le_bytes(raw_buffer[0..2].try_into().unwrap()),
+			image_height: u16::from_le_bytes(raw_buffer[2..4].try_into().unwrap()),
+			bit_depth: raw_buffer[4],
+			image_count: u64::from_le_bytes(raw_buffer[9..17].try_into().unwrap()) as usize,
+			labels: labels,
+		});
 	}
 }
 
-impl From<*mut ffi::JDXHeader> for Header {
-	fn from(header_ptr: *mut ffi::JDXHeader) -> Self {
-		unsafe {
-			let header = *header_ptr;
+impl Header {
+	pub fn write_to_file(&self, file: &mut File) -> Result<()> {
+		file.write_all(b"JDX")?;
+		self.version.write_to_file(file)?;
 
-			let labels = slice::from_raw_parts(header.labels, header.label_count as usize)
-				.iter()
-				.map(|&label| std::ffi::CStr::from_ptr(label).to_string_lossy().into_owned())
-				.collect();
+		let label_bytes = self.labels
+			.iter()
+			.map(String::len)
+			.sum::<usize>()
+			.add(self.labels.len());
 
-			ffi::JDX_FreeHeader(header_ptr);
+		file.write_all(&self.image_width.to_le_bytes())?;
+		file.write_all(&self.image_height.to_le_bytes())?;
+		file.write_all(&self.bit_depth.to_le_bytes())?;
+		file.write_all(&(label_bytes as u32).to_le_bytes())?;
+		file.write_all(&(self.image_count as u64).to_le_bytes())?;
 
-			return Self {
-				version: header.version.into(),
-				image_width: header.image_width,
-				image_height: header.image_height,
-				bit_depth: header.bit_depth,
-				image_count: header.image_count,
-				labels: labels,
-			};
+		for label in &self.labels {
+			file.write_all(label.as_str().as_bytes())?;
+			file.write_all(&[0x00])?;
 		}
-	}
-}
 
-impl From<&Header> for *mut ffi::JDXHeader {
-	fn from(header: &Header) -> *mut ffi::JDXHeader {
-		unsafe {
-			let header_ptr = ffi::JDX_AllocHeader();
-
-			let labels = header.labels
-				.iter()
-				.map(|label| { // TODO: Consider doing this directly with malloc to avoid extra allocation
-					let label_cstr = std::ffi::CString::new(label.clone()).unwrap();
-					return libc::strdup(label_cstr.as_ptr());
-				})
-				.collect::<Vec<*mut c_char>>();
-
-			let labels_ptr = crate::memdup(
-				labels.as_ptr() as *const c_void,
-				mem::size_of_val(&labels as &[*mut c_char]
-			)) as *mut *mut c_char;
-
-			*header_ptr = ffi::JDXHeader {
-				version: header.version.into(),
-				image_count: header.image_count,
-				image_width: header.image_width,
-				image_height: header.image_height,
-				bit_depth: header.bit_depth,
-				labels: labels_ptr,
-				label_count: header.labels.len() as u16, // TODO: Consider checking this cast
-			};
-
-			return header_ptr;
-		}
+		file.flush()?;
+		Ok(())
 	}
 }
