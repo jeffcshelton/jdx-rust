@@ -21,7 +21,7 @@ pub type Label = u16;
 pub enum Error {
 	Io(io::ErrorKind),
 	CorruptFile,
-	IncompatibleHeaders,
+	IncompatibleDimensions,
 }
 
 impl From<io::Error> for Error {
@@ -35,7 +35,7 @@ impl fmt::Display for Error {
 		match self {
 			Self::Io(error_kind) => write!(f, "Encountered IO error '{}'", error_kind),
 			Self::CorruptFile => write!(f, "Failed to parse corrupted file."),
-			Self::IncompatibleHeaders => write!(f, "Failed to merge due to incompatible headers."),
+			Self::IncompatibleDimensions => write!(f, "Failed to merge due to incompatible dimensions."),
 		}
 	}
 }

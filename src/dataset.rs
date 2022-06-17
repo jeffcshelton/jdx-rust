@@ -3,6 +3,7 @@ use std::{
 	io::{Read, Write},
 	mem,
 	path::Path,
+	slice::{Iter, IterMut},
 };
 
 use flate2::{
@@ -72,19 +73,48 @@ impl Dataset {
 
 impl Dataset {
 	#[inline]
+	pub fn get(&self, index: usize) -> Option<&LabeledImage> {
+		self.images.get(index)
+	}
+
+	#[inline]
+	pub fn get_mut(&mut self, index: usize) -> Option<&mut LabeledImage> {
+		self.images.get_mut(index)
+	}
+
+	#[inline]
 	pub fn header(&self) -> &Header {
 		&self.header
 	}
 
+	#[inline]
+	pub fn iter(&self) -> Iter<LabeledImage> {
+		self.images.iter()
+	}
+
+	#[inline]
+	pub fn iter_mut(&mut self) -> IterMut<LabeledImage> {
+		self.images.iter_mut()
+	}
+
 	pub fn append(&mut self, mut dataset: Dataset) -> Result<()> {
 		if !self.header.is_compatible_with(&dataset.header) {
-			return Err(Error::IncompatibleHeaders);
+			return Err(Error::IncompatibleDimensions);
 		}
 
 		self.header.image_count += dataset.header.image_count;
 
 		// TODO: Do label correction & add test
 		self.images.append(&mut dataset.images);
+		Ok(())
+	}
+
+	pub fn push(&mut self, image: LabeledImage) -> Result<()> {
+		if image.0.len() != self.header.image_size() {
+			return Err(Error::IncompatibleDimensions);
+		}
+
+		self.images.push(image);
 		Ok(())
 	}
 
