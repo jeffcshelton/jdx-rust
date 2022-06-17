@@ -30,14 +30,16 @@ fn write_dataset() -> Result<()> {
 }
 
 #[test]
-fn extend_dataset() -> Result<()> {
-	let mut copy = EXAMPLE_DATASET.clone();
-	copy.extend(&EXAMPLE_DATASET)?;
+fn append_dataset() -> Result<()> {
+	let mut copy1 = EXAMPLE_DATASET.clone();
+	let copy2 = copy1.clone();
+	copy1.append(copy2)?;
 
-	assert_eq!(copy.header().image_count, EXAMPLE_DATASET.header().image_count * 2);
-	assert_eq!(copy.get_image(0), copy.get_image(EXAMPLE_DATASET.header().image_count as usize));
+	assert_eq!(copy1.header().labels, EXAMPLE_DATASET.header().labels);
+	assert_eq!(copy1.header().image_count, EXAMPLE_DATASET.header().image_count * 2);
+	assert_eq!(copy1.get(0), copy1.get(EXAMPLE_DATASET.header().image_count as usize));
 
-	return Ok(());
+	Ok(())
 }
 
 #[test]
@@ -50,5 +52,5 @@ fn read_header() -> Result<()> {
 	assert_eq!(header.image_height, 52);
 	assert_eq!(header.image_count, 8);
 
-	return Ok(());
+	Ok(())
 }

@@ -3,7 +3,7 @@ use std::{
 	io::{Read, Write},
 	mem,
 	path::Path,
-	slice::{Iter, IterMut},
+	slice::{Iter, IterMut}, collections::HashMap,
 };
 
 use flate2::{
@@ -97,16 +97,53 @@ impl Dataset {
 		self.images.iter_mut()
 	}
 
-	pub fn append(&mut self, mut dataset: Dataset) -> Result<()> {
-		if !self.header.is_compatible_with(&dataset.header) {
+	pub fn append(&mut self, mut other: Dataset) -> Result<()> {
+		if !self.header.is_compatible_with(&other.header) {
 			return Err(Error::IncompatibleDimensions);
 		}
 
-		self.header.image_count += dataset.header.image_count;
+		let other_labels = other.header.labels.clone();
+		let mut label_map = HashMap::<u16, u16>::new();
 
-		// TODO: Do label correction & add test
-		self.images.append(&mut dataset.images);
+		// This loop merges labels in the 'other' Dataset into self
+		for (_, image_label) in other.iter_mut() {
+			if let Some(mapped_label) = label_map.get(image_label) {
+				*image_label = *mapped_label;
+			} else {
+				let label_str = other_labels
+					.get(usize::from(*image_label))
+					.unwrap();
+
+				let mapped_index = self.header.labels
+					.iter()
+					.position(|s| s == label_str)
+					.and_then(|i| u16::try_from(i).ok());
+				
+				if let Some(mapped_label) = mapped_index {
+					label_map.insert(*image_label, mapped_label);
+					*image_label = mapped_label;
+				} else {
+					if self.header.labels.len() >= u16::MAX.into() {
+						return Err(Error::PastLabelLimit);
+					}
+
+					let mapped_label = self.header.labels.len() as u16;
+					label_map.insert(*image_label, mapped_label);
+					*image_label = mapped_label;
+
+					self.header.labels.push(label_str.clone());
+				}
+			}
+		}
+
+		self.header.image_count += other.header.image_count;
+		self.images.append(&mut other.images);
+
 		Ok(())
+	}
+
+	pub fn extend(&mut self, other: &Dataset) -> Result<()> {
+		self.append(other.clone())
 	}
 
 	pub fn push(&mut self, image: LabeledImage) -> Result<()> {
@@ -114,6 +151,7 @@ impl Dataset {
 			return Err(Error::IncompatibleDimensions);
 		}
 
+		self.header.image_count += 1;
 		self.images.push(image);
 		Ok(())
 	}

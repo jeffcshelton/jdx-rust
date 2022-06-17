@@ -22,6 +22,7 @@ pub enum Error {
 	Io(io::ErrorKind),
 	CorruptFile,
 	IncompatibleDimensions,
+	PastLabelLimit,
 }
 
 impl From<io::Error> for Error {
@@ -36,6 +37,7 @@ impl fmt::Display for Error {
 			Self::Io(error_kind) => write!(f, "Encountered IO error '{}'", error_kind),
 			Self::CorruptFile => write!(f, "Failed to parse corrupted file."),
 			Self::IncompatibleDimensions => write!(f, "Failed to merge due to incompatible dimensions."),
+			Self::PastLabelLimit => write!(f, "the number of labels in a dataset cannot exceed 65,536"),
 		}
 	}
 }
