@@ -14,7 +14,6 @@ use flate2::{
 use crate::{
 	Error,
 	Header,
-	Image,
 	Label,
 	Result,
 };
@@ -61,14 +60,6 @@ impl Dataset {
 		&self.header
 	}
 
-	#[inline]
-	pub fn iter(&self) -> ImgIterator {
-		ImgIterator {
-			dataset: self,
-			index: 0,
-		}
-	}
-
 	pub fn append(&mut self, mut dataset: Dataset) -> Result<()> {
 		if !self.header.is_compatible_with(&dataset.header) {
 			return Err(Error::IncompatibleHeaders);
@@ -93,58 +84,6 @@ impl Dataset {
 		Ok(())
 	}
 
-	pub fn get_image(&self, index: usize) -> Option<Image> {
-		if index >= self.header.image_count {
-			return None;
-		}
-
-		let image_size = self.header.image_size();
-		let label_size = mem::size_of::<Label>();
-		let block_size = image_size + label_size;
-
-		let start_block = index * block_size;
-		let end_image = start_block + image_size;
-		let end_label = end_image + label_size;
-
-		let image_data = &self.raw_data[start_block..end_image];
-		let label_index = Label::from_le_bytes(
-			self.raw_data[end_image..end_label]
-				.try_into()
-				.unwrap()
-		);
-
-		Some(Image {
-			raw_data: image_data,
-			width: self.header.image_width,
-			height: self.header.image_height,
-			bit_depth: self.header.bit_depth,
-			label: self.header.labels.get(label_index as usize).unwrap(),
-			label_index: label_index,
-		})
-	}
-
-	pub fn push(&mut self, image: Image) -> Result<()> {
-		if self.header.image_width != image.width
-		|| self.header.image_height != image.height
-		|| self.header.bit_depth != image.bit_depth {
-			return Err(Error::IncompatibleHeaders);
-		}
-
-		let label_index = self.header.labels
-			.iter()
-			.position(|label| label == &image.label)
-			.unwrap_or_else(|| {
-				self.header.labels.push(image.label.to_owned());
-				self.header.labels.len() - 1
-			}) as u16; // TODO: Remove as and replace with explicit check
-
-		self.raw_data.append(&mut image.raw_data.to_vec());
-		self.raw_data.extend(&label_index.to_le_bytes());
-		self.header.image_count += 1;
-
-		Ok(())
-	}
-
 	pub fn write_to_path<P: AsRef<Path>>(&self, path: P) -> Result<()> {
 		self.write_to_file(&mut File::create(path)?)
 	}
@@ -160,26 +99,5 @@ impl Dataset {
 		file.write_all(&compressed_buffer)?;
 
 		Ok(())
-	}
-}
-
-pub struct ImageIterator<'a> {
-	dataset: &'a Dataset,
-	index: usize,
-}
-
-impl<'a> Iterator for ImageIterator<'a> {
-	type Item = Image<'a>;
-
-	fn next(&mut self) -> Option<Image<'a>> {
-		self.index += 1;
-
-		self.dataset.get_image(self.index - 1)
-	}
-}
-
-impl ExactSizeIterator for ImageIterator<'_> {
-	fn len(&self) -> usize {
-		self.dataset.header.image_count as usize
 	}
 }

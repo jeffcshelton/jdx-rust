@@ -10,9 +10,6 @@ pub use dataset::{
 pub mod header;
 pub use header::Header;
 
-pub mod image;
-pub use image::Image;
-
 #[cfg(test)]
 mod tests;
 
