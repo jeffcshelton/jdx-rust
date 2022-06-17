@@ -16,9 +16,9 @@ pub struct Header {
 impl Header {
 	#[inline]
 	pub fn image_size(&self) -> usize {
-		self.image_width as usize *
-		self.image_height as usize *
-		self.bit_depth as usize / 8
+		usize::from(self.image_width) *
+		usize::from(self.image_height) *
+		usize::from(self.bit_depth / 8)
 	}
 
 	pub fn read_from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
@@ -44,7 +44,7 @@ impl Header {
 				.unwrap()
 		);
 
-		let mut raw_labels = vec![0_u8; label_bytes as usize];
+		let mut raw_labels = vec![0_u8; usize::try_from(label_bytes).unwrap()];
 		file.read_exact(&mut raw_labels)?;
 
 		// TODO: Add check & filter for zero-length strings
@@ -60,7 +60,7 @@ impl Header {
 			image_width: u16::from_le_bytes(raw_buffer[0..2].try_into().unwrap()),
 			image_height: u16::from_le_bytes(raw_buffer[2..4].try_into().unwrap()),
 			bit_depth: raw_buffer[4],
-			image_count: u64::from_le_bytes(raw_buffer[9..17].try_into().unwrap()) as usize,
+			image_count: u64::from_le_bytes(raw_buffer[9..17].try_into().unwrap()).try_into().unwrap(),
 			labels: labels,
 		});
 	}
@@ -86,8 +86,8 @@ impl Header {
 		file.write_all(&self.image_width.to_le_bytes())?;
 		file.write_all(&self.image_height.to_le_bytes())?;
 		file.write_all(&self.bit_depth.to_le_bytes())?;
-		file.write_all(&(label_bytes as u32).to_le_bytes())?;
-		file.write_all(&(self.image_count as u64).to_le_bytes())?;
+		file.write_all(&u32::try_from(label_bytes).unwrap().to_le_bytes())?;
+		file.write_all(&u64::try_from(self.image_count).unwrap().to_le_bytes())?;
 
 		for label in &self.labels {
 			file.write_all(label.as_str().as_bytes())?;

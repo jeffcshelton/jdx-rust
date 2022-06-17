@@ -37,7 +37,7 @@ impl Dataset {
 
 		let mut body_size_bytes = [0_u8; 8];
 		file.read_exact(&mut body_size_bytes)?;
-		let body_size = u64::from_le_bytes(body_size_bytes) as usize;
+		let body_size = usize::try_from(u64::from_le_bytes(body_size_bytes)).unwrap();
 
 		let mut decoder = DeflateDecoder::new(file);
 		let mut decompressed_data = Vec::with_capacity(body_size);
@@ -183,7 +183,7 @@ impl Dataset {
 
 		drop(encoder);
 
-		file.write_all(&(compressed_buffer.len() as u64).to_le_bytes())?;
+		file.write_all(&u64::try_from(compressed_buffer.len()).unwrap().to_le_bytes())?;
 		file.write_all(&compressed_buffer)?;
 
 		Ok(())
