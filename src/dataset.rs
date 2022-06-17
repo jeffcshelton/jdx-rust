@@ -1,8 +1,8 @@
 use std::{
 	fs::File,
 	io::{Read, Write},
-	path::Path,
 	mem,
+	path::Path,
 };
 
 use flate2::{
@@ -18,10 +18,12 @@ use crate::{
 	Result,
 };
 
+pub type LabeledImage = (Box<[u8]>, Label);
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Dataset {
 	header: Header,
-	raw_data: Vec<u8>,
+	images: Vec<LabeledImage>,
 }
 
 impl Dataset {
@@ -40,16 +42,30 @@ impl Dataset {
 		let mut decompressed_data = Vec::with_capacity(body_size);
 		decoder.read_to_end(&mut decompressed_data)?;
 
+		let images = decompressed_data
+			.chunks_exact(header.image_size() + mem::size_of::<Label>())
+			.map(|chunk| {
+				let image_data = Box::<[u8]>::from(&chunk[..header.image_size()]);
+				let label = Label::from_le_bytes(
+					chunk[header.image_size()..]
+						.try_into()
+						.unwrap()
+				);
+
+				(image_data, label)
+			})
+			.collect();
+
 		Ok(Self {
 			header: header,
-			raw_data: decompressed_data,
+			images: images,
 		})
 	}
 
 	pub fn with_header(header: Header) -> Self {
 		Self {
 			header: header,
-			raw_data: Vec::new(),
+			images: Vec::new(),
 		}
 	}
 }
@@ -68,19 +84,7 @@ impl Dataset {
 		self.header.image_count += dataset.header.image_count;
 
 		// TODO: Do label correction & add test
-		self.raw_data.append(&mut dataset.raw_data);
-		Ok(())
-	}
-
-	pub fn extend(&mut self, dataset: &Dataset) -> Result<()> {
-		if !self.header.is_compatible_with(&dataset.header) {
-			return Err(Error::IncompatibleHeaders);
-		}
-
-		// TODO: Do label correction & add test
-		self.raw_data.extend(dataset.raw_data.iter());
-		self.header.image_count += dataset.header.image_count;
-
+		self.images.append(&mut dataset.images);
 		Ok(())
 	}
 
@@ -92,8 +96,14 @@ impl Dataset {
 		self.header.write_to_file(file)?;
 
 		let mut compressed_buffer = Vec::new();
-		DeflateEncoder::new(&mut compressed_buffer, Compression::new(9))
-			.write_all(&self.raw_data)?;
+		let mut encoder = DeflateEncoder::new(&mut compressed_buffer, Compression::new(9));
+
+		for (image_data, label) in &self.images {
+			encoder.write_all(&image_data)?;
+			encoder.write_all(&label.to_le_bytes())?;
+		}
+
+		drop(encoder);
 
 		file.write_all(&(compressed_buffer.len() as u64).to_le_bytes())?;
 		file.write_all(&compressed_buffer)?;
