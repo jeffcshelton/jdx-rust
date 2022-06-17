@@ -114,24 +114,20 @@ impl Dataset {
 					.get(usize::from(*image_label))
 					.unwrap();
 
-				let mapped_index = self.header.labels
+				let mapped_label = self.header.labels
 					.iter()
 					.position(|s| s == label_str)
-					.and_then(|i| u16::try_from(i).ok());
-				
-				if let Some(mapped_label) = mapped_index {
+					.unwrap_or_else(|| {
+						self.header.labels.push(label_str.to_owned());
+						self.header.labels.len() - 1
+					});
+
+				if let Ok(mapped_label) = u16::try_from(mapped_label) {
 					label_map.insert(*image_label, mapped_label);
 					*image_label = mapped_label;
 				} else {
-					if self.header.labels.len() >= u16::MAX.into() {
-						return Err(Error::PastLabelLimit);
-					}
-
-					let mapped_label = self.header.labels.len() as u16;
-					label_map.insert(*image_label, mapped_label);
-					*image_label = mapped_label;
-
-					self.header.labels.push(label_str.clone());
+					self.header.labels.pop();
+					return Err(Error::PastLabelLimit);
 				}
 			}
 		}
@@ -146,13 +142,27 @@ impl Dataset {
 		self.append(other.clone())
 	}
 
-	pub fn push(&mut self, image: LabeledImage) -> Result<()> {
-		if image.0.len() != self.header.image_size() {
+	pub fn push(&mut self, raw_image: Box<[u8]>, label_str: &str) -> Result<()> {
+		if raw_image.len() != self.header.image_size() {
 			return Err(Error::IncompatibleDimensions);
 		}
 
-		self.header.image_count += 1;
-		self.images.push(image);
+		let mapped_label = self.header.labels
+			.iter()
+			.position(|s| s == label_str)
+			.unwrap_or_else(|| {
+				self.header.labels.push(label_str.to_owned());
+				self.header.labels.len() - 1
+			});
+
+		if let Ok(mapped_label) = u16::try_from(mapped_label) {
+			self.header.image_count += 1;
+			self.images.push((raw_image, mapped_label));
+		} else {
+			self.header.labels.pop();
+			return Err(Error::PastLabelLimit);
+		}
+
 		Ok(())
 	}
 
