@@ -1,8 +1,9 @@
 use std::{
 	fs::File,
 	io::{Read, Write},
-	path::Path,
 	mem,
+	path::Path,
+	slice::{Iter, IterMut}, collections::HashMap,
 };
 
 use flate2::{
@@ -14,15 +15,16 @@ use flate2::{
 use crate::{
 	Error,
 	Header,
-	Image,
 	Label,
 	Result,
 };
 
+pub type LabeledImage = (Box<[u8]>, Label);
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Dataset {
 	header: Header,
-	raw_data: Vec<u8>,
+	images: Vec<LabeledImage>,
 }
 
 impl Dataset {
@@ -35,122 +37,145 @@ impl Dataset {
 
 		let mut body_size_bytes = [0_u8; 8];
 		file.read_exact(&mut body_size_bytes)?;
-		let body_size = u64::from_le_bytes(body_size_bytes) as usize;
+
+		let body_size = usize::try_from(
+			u64::from_le_bytes(body_size_bytes)
+		).unwrap();
 
 		let mut decoder = DeflateDecoder::new(file);
 		let mut decompressed_data = Vec::with_capacity(body_size);
 		decoder.read_to_end(&mut decompressed_data)?;
 
+		let image_size = header.image_size();
+		let label_size = mem::size_of::<Label>();
+
+		let images = decompressed_data
+			.chunks_exact(image_size + label_size)
+			.map(|chunk| {
+				let image_data = Box::<[u8]>::from(&chunk[..image_size]);
+				let label = Label::from_le_bytes(
+					chunk[image_size..]
+						.try_into()
+						.unwrap()
+				);
+
+				(image_data, label)
+			})
+			.collect();
+
+		for &(_, label) in &images {
+			if usize::from(label) > header.labels.len() {
+				return Err(Error::CorruptFile);
+			}
+		}
+
 		Ok(Self {
 			header: header,
-			raw_data: decompressed_data,
+			images: images,
 		})
 	}
 
 	pub fn with_header(header: Header) -> Self {
 		Self {
 			header: header,
-			raw_data: Vec::new(),
+			images: Vec::new(),
 		}
 	}
 }
 
 impl Dataset {
 	#[inline]
+	pub fn get(&self, index: usize) -> Option<&LabeledImage> {
+		self.images.get(index)
+	}
+
+	#[inline]
+	pub fn get_mut(&mut self, index: usize) -> Option<&mut LabeledImage> {
+		self.images.get_mut(index)
+	}
+
+	#[inline]
 	pub fn header(&self) -> &Header {
 		&self.header
 	}
 
 	#[inline]
-	pub fn iter(&self) -> ImgIterator {
-		ImgIterator {
-			dataset: self,
-			index: 0,
-		}
+	pub fn iter(&self) -> Iter<LabeledImage> {
+		self.images.iter()
 	}
 
-	pub fn append(&mut self, mut dataset: Dataset) -> Result<()> {
-		if self.header.image_width != dataset.header.image_width {
-			return Err(Error::UnequalWidths);
-		} else if self.header.image_height != dataset.header.image_height {
-			return Err(Error::UnequalHeights);
-		} else if self.header.bit_depth != dataset.header.bit_depth {
-			return Err(Error::UnequalBitDepths);
+	#[inline]
+	pub fn iter_mut(&mut self) -> IterMut<LabeledImage> {
+		self.images.iter_mut()
+	}
+
+	pub fn append(&mut self, mut other: Dataset) -> Result<()> {
+		if !self.header.is_compatible_with(&other.header) {
+			return Err(Error::IncompatibleDimensions);
 		}
 
-		self.header.image_count += dataset.header.image_count;
+		let other_labels = other.header.labels.clone();
+		let mut label_map = HashMap::<u16, u16>::new();
 
-		// TODO: Do label correction & add test
-		self.raw_data.append(&mut dataset.raw_data);
+		// This loop merges labels in the 'other' Dataset into self
+		for (_, image_label) in other.iter_mut() {
+			if let Some(mapped_label) = label_map.get(image_label) {
+				*image_label = *mapped_label;
+			} else {
+				let label_str = other_labels
+					.get(usize::from(*image_label))
+					.unwrap();
+
+				let mapped_label = self.header.labels
+					.iter()
+					.position(|s| s == label_str)
+					.unwrap_or_else(|| {
+						self.header.labels.push(label_str.to_owned());
+						self.header.labels.len() - 1
+					});
+
+				if let Ok(mapped_label) = u16::try_from(mapped_label) {
+					label_map.insert(*image_label, mapped_label);
+					*image_label = mapped_label;
+				} else {
+					self.header.labels.pop();
+					return Err(Error::ClassLimitExceeded);
+				}
+			}
+		}
+
+		self.header.image_count += other.header.image_count;
+		self.images.append(&mut other.images);
+
 		Ok(())
 	}
 
-	pub fn extend(&mut self, dataset: &Dataset) -> Result<()> {
-		if self.header.image_width != dataset.header.image_width {
-			return Err(Error::UnequalWidths);
-		} else if self.header.image_height != dataset.header.image_height {
-			return Err(Error::UnequalHeights);
-		} else if self.header.bit_depth != dataset.header.bit_depth {
-			return Err(Error::UnequalBitDepths);
-		}
-
-		// TODO: Do label correction & add test
-		self.raw_data.extend(dataset.raw_data.iter());
-		self.header.image_count += dataset.header.image_count;
-
-		Ok(())
+	pub fn extend(&mut self, other: &Dataset) -> Result<()> {
+		self.append(other.clone())
 	}
 
-	pub fn get_image(&self, index: usize) -> Option<Image> {
-		if index >= self.header.image_count {
-			return None;
+	pub fn push(&mut self, raw_image: Box<[u8]>, class_name: &str) -> Result<()> {
+		if raw_image.len() != self.header.image_size() {
+			return Err(Error::IncompatibleDimensions);
+		} else if class_name.len() + 1 > u16::MAX.into() {
+			return Err(Error::ClassLengthLimitExceeded);
 		}
 
-		let image_size = self.header.image_size();
-		let label_size = mem::size_of::<Label>();
-		let block_size = image_size + label_size;
-
-		let start_block = index * block_size;
-		let end_image = start_block + image_size;
-		let end_label = end_image + label_size;
-
-		let image_data = &self.raw_data[start_block..end_image];
-		let label_index = Label::from_le_bytes(
-			self.raw_data[end_image..end_label]
-				.try_into()
-				.unwrap()
-		);
-
-		Some(Image {
-			raw_data: image_data,
-			width: self.header.image_width,
-			height: self.header.image_height,
-			bit_depth: self.header.bit_depth,
-			label: self.header.labels.get(label_index as usize).unwrap(),
-			label_index: label_index,
-		})
-	}
-
-	pub fn push(&mut self, image: Image) -> Result<()> {
-		if self.header.image_width != image.width {
-			return Err(Error::UnequalWidths);
-		} else if self.header.image_height != image.height {
-			return Err(Error::UnequalHeights);
-		} else if self.header.bit_depth != image.bit_depth {
-			return Err(Error::UnequalBitDepths);
-		}
-
-		let label_index = self.header.labels
+		let mapped_label = self.header.labels
 			.iter()
-			.position(|label| label == &image.label)
+			.position(|s| s == class_name)
 			.unwrap_or_else(|| {
-				self.header.labels.push(image.label.to_owned());
+				self.header.labels.push(class_name.to_owned());
 				self.header.labels.len() - 1
-			}) as u16; // TODO: Remove as and replace with explicit check
+			});
 
-		self.raw_data.append(&mut image.raw_data.to_vec());
-		self.raw_data.extend(&label_index.to_le_bytes());
-		self.header.image_count += 1;
+		if let Ok(mapped_label) = u16::try_from(mapped_label) {
+			self.header.image_count += 1;
+			self.images.push((raw_image, mapped_label));
+		} else {
+			self.header.labels.pop();
+			return Err(Error::ClassLimitExceeded);
+		}
 
 		Ok(())
 	}
@@ -163,33 +188,18 @@ impl Dataset {
 		self.header.write_to_file(file)?;
 
 		let mut compressed_buffer = Vec::new();
-		DeflateEncoder::new(&mut compressed_buffer, Compression::new(9))
-			.write_all(&self.raw_data)?;
+		let mut encoder = DeflateEncoder::new(&mut compressed_buffer, Compression::new(9));
 
-		file.write_all(&(compressed_buffer.len() as u64).to_le_bytes())?;
+		for (image_data, label) in &self.images {
+			encoder.write_all(&image_data)?;
+			encoder.write_all(&label.to_le_bytes())?;
+		}
+
+		drop(encoder);
+
+		file.write_all(&u64::try_from(compressed_buffer.len()).unwrap().to_le_bytes())?;
 		file.write_all(&compressed_buffer)?;
 
 		Ok(())
-	}
-}
-
-pub struct ImgIterator<'a> {
-	dataset: &'a Dataset,
-	index: usize,
-}
-
-impl<'a> Iterator for ImgIterator<'a> {
-	type Item = Image<'a>;
-
-	fn next(&mut self) -> Option<Image<'a>> {
-		self.index += 1;
-
-		self.dataset.get_image(self.index - 1)
-	}
-}
-
-impl ExactSizeIterator for ImgIterator<'_> {
-	fn len(&self) -> usize {
-		self.dataset.header.image_count as usize
 	}
 }

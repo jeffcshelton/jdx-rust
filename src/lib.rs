@@ -4,14 +4,11 @@ pub use version::Version;
 pub mod dataset;
 pub use dataset::{
 	Dataset,
-	ImgIterator,
+	LabeledImage,
 };
 
 pub mod header;
 pub use header::Header;
-
-pub mod image;
-pub use image::Image;
 
 #[cfg(test)]
 mod tests;
@@ -24,10 +21,10 @@ pub type Label = u16;
 pub enum Error {
 	Io(io::ErrorKind),
 	CorruptFile,
+	IncompatibleDimensions,
 
-	UnequalWidths,
-	UnequalHeights,
-	UnequalBitDepths,
+	ClassLimitExceeded,
+	ClassLengthLimitExceeded,
 }
 
 impl From<io::Error> for Error {
@@ -39,11 +36,11 @@ impl From<io::Error> for Error {
 impl fmt::Display for Error {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
-			Self::Io(error_kind) => write!(f, "Encountered IO error '{}'", error_kind),
+			Self::Io(error_kind) => write!(f, "Encountered IO error: {}.", error_kind),
 			Self::CorruptFile => write!(f, "Failed to parse corrupted file."),
-			Self::UnequalWidths => write!(f, "Datasets have unequal image widths."),
-			Self::UnequalHeights => write!(f, "Datasets have unequal image heights."),
-			Self::UnequalBitDepths => write!(f, "Datasets have unequal bit depths."),
+			Self::IncompatibleDimensions => write!(f, "Failed to merge due to incompatible dimensions."),
+			Self::ClassLimitExceeded => write!(f, "The number of classes in a dataset cannot exceed 65,535"),
+			Self::ClassLengthLimitExceeded => write!(f, "The number of bytes in a class name cannot exceed 65,534"),
 		}
 	}
 }
