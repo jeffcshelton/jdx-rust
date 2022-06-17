@@ -37,18 +37,24 @@ impl Dataset {
 
 		let mut body_size_bytes = [0_u8; 8];
 		file.read_exact(&mut body_size_bytes)?;
-		let body_size = usize::try_from(u64::from_le_bytes(body_size_bytes)).unwrap();
+
+		let body_size = usize::try_from(
+			u64::from_le_bytes(body_size_bytes)
+		).unwrap();
 
 		let mut decoder = DeflateDecoder::new(file);
 		let mut decompressed_data = Vec::with_capacity(body_size);
 		decoder.read_to_end(&mut decompressed_data)?;
 
+		let image_size = header.image_size();
+		let label_size = mem::size_of::<Label>();
+
 		let images = decompressed_data
-			.chunks_exact(header.image_size() + mem::size_of::<Label>())
+			.chunks_exact(image_size + label_size)
 			.map(|chunk| {
-				let image_data = Box::<[u8]>::from(&chunk[..header.image_size()]);
+				let image_data = Box::<[u8]>::from(&chunk[..image_size]);
 				let label = Label::from_le_bytes(
-					chunk[header.image_size()..]
+					chunk[image_size..]
 						.try_into()
 						.unwrap()
 				);
@@ -56,6 +62,12 @@ impl Dataset {
 				(image_data, label)
 			})
 			.collect();
+
+		for &(_, label) in &images {
+			if usize::from(label) > header.labels.len() {
+				return Err(Error::CorruptFile);
+			}
+		}
 
 		Ok(Self {
 			header: header,
@@ -127,7 +139,7 @@ impl Dataset {
 					*image_label = mapped_label;
 				} else {
 					self.header.labels.pop();
-					return Err(Error::PastLabelLimit);
+					return Err(Error::ClassLimitExceeded);
 				}
 			}
 		}
@@ -142,16 +154,18 @@ impl Dataset {
 		self.append(other.clone())
 	}
 
-	pub fn push(&mut self, raw_image: Box<[u8]>, label_str: &str) -> Result<()> {
+	pub fn push(&mut self, raw_image: Box<[u8]>, class_name: &str) -> Result<()> {
 		if raw_image.len() != self.header.image_size() {
 			return Err(Error::IncompatibleDimensions);
+		} else if class_name.len() + 1 > u16::MAX.into() {
+			return Err(Error::ClassLengthLimitExceeded);
 		}
 
 		let mapped_label = self.header.labels
 			.iter()
-			.position(|s| s == label_str)
+			.position(|s| s == class_name)
 			.unwrap_or_else(|| {
-				self.header.labels.push(label_str.to_owned());
+				self.header.labels.push(class_name.to_owned());
 				self.header.labels.len() - 1
 			});
 
@@ -160,7 +174,7 @@ impl Dataset {
 			self.images.push((raw_image, mapped_label));
 		} else {
 			self.header.labels.pop();
-			return Err(Error::PastLabelLimit);
+			return Err(Error::ClassLimitExceeded);
 		}
 
 		Ok(())
