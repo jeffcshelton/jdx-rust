@@ -163,12 +163,12 @@ impl Dataset {
 	}
 }
 
-pub struct ImgIterator<'a> {
+pub struct ImageIterator<'a> {
 	dataset: &'a Dataset,
 	index: usize,
 }
 
-impl<'a> Iterator for ImgIterator<'a> {
+impl<'a> Iterator for ImageIterator<'a> {
 	type Item = Image<'a>;
 
 	fn next(&mut self) -> Option<Image<'a>> {
@@ -178,7 +178,7 @@ impl<'a> Iterator for ImgIterator<'a> {
 	}
 }
 
-impl ExactSizeIterator for ImgIterator<'_> {
+impl ExactSizeIterator for ImageIterator<'_> {
 	fn len(&self) -> usize {
 		self.dataset.header.image_count as usize
 	}

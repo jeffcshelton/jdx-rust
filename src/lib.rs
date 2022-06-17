@@ -4,7 +4,7 @@ pub use version::Version;
 pub mod dataset;
 pub use dataset::{
 	Dataset,
-	ImgIterator,
+	ImageIterator,
 };
 
 pub mod header;
