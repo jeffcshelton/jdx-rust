@@ -35,7 +35,7 @@ fn append_dataset() -> Result<()> {
 	let copy2 = copy1.clone();
 	copy1.append(copy2)?;
 
-	assert_eq!(copy1.header().labels, EXAMPLE_DATASET.header().labels);
+	assert_eq!(copy1.header().classes, EXAMPLE_DATASET.header().classes);
 	assert_eq!(copy1.header().image_count, EXAMPLE_DATASET.header().image_count * 2);
 	assert_eq!(copy1.get(0), copy1.get(EXAMPLE_DATASET.header().image_count as usize));
 

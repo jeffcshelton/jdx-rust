@@ -10,7 +10,7 @@ pub struct Header {
 	pub bit_depth: u8,
 	pub image_count: usize,
 
-	pub labels: Vec<String>,
+	pub classes: Vec<String>,
 }
 
 impl Header {
@@ -38,21 +38,21 @@ impl Header {
 		let mut raw_buffer = [0x00; 17]; // TODO: Rename better
 		file.read_exact(&mut raw_buffer)?;
 
-		let label_bytes = u32::from_le_bytes(
+		let class_bytes = u32::from_le_bytes(
 			raw_buffer[5..9]
 				.try_into()
 				.unwrap()
 		);
 
-		let mut raw_labels = vec![0_u8; usize::try_from(label_bytes).unwrap()];
-		file.read_exact(&mut raw_labels)?;
+		let mut raw_classes = vec![0_u8; usize::try_from(class_bytes).unwrap()];
+		file.read_exact(&mut raw_classes)?;
 
 		// TODO: Add check & filter for zero-length strings
-		let labels = raw_labels
+		let classes = raw_classes
 			.split(|&byte| byte == 0)
 			.filter_map(|byte_str| std::str::from_utf8(byte_str).ok())
 			.map(str::to_owned)
-			.filter(|label| !label.is_empty())
+			.filter(|class| !class.is_empty())
 			.collect();
 
 		return Ok(Self {
@@ -61,7 +61,7 @@ impl Header {
 			image_height: u16::from_le_bytes(raw_buffer[2..4].try_into().unwrap()),
 			bit_depth: raw_buffer[4],
 			image_count: u64::from_le_bytes(raw_buffer[9..17].try_into().unwrap()).try_into().unwrap(),
-			labels: labels,
+			classes: classes,
 		});
 	}
 }
@@ -77,20 +77,20 @@ impl Header {
 		file.write_all(b"JDX")?;
 		self.version.write_to_file(file)?;
 
-		let label_bytes = self.labels
+		let class_bytes = self.classes
 			.iter()
 			.map(String::len)
 			.sum::<usize>()
-			.add(self.labels.len());
+			.add(self.classes.len());
 
 		file.write_all(&self.image_width.to_le_bytes())?;
 		file.write_all(&self.image_height.to_le_bytes())?;
 		file.write_all(&self.bit_depth.to_le_bytes())?;
-		file.write_all(&u32::try_from(label_bytes).unwrap().to_le_bytes())?;
+		file.write_all(&u32::try_from(class_bytes).unwrap().to_le_bytes())?;
 		file.write_all(&u64::try_from(self.image_count).unwrap().to_le_bytes())?;
 
-		for label in &self.labels {
-			file.write_all(label.as_str().as_bytes())?;
+		for class_name in &self.classes {
+			file.write_all(class_name.as_str().as_bytes())?;
 			file.write_all(&[0x00])?;
 		}
 
