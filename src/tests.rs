@@ -8,7 +8,7 @@ const EXAMPLE_PATH: &'static str = "./res/example.jdx";
 lazy_static! {
 	static ref EXAMPLE_DATASET: Dataset = {
 		Dataset::read_from_path(EXAMPLE_PATH)
-			.unwrap_or_else(|error| panic!("Cannot read example dataset: {}", error))
+			.unwrap_or_else(|error| panic!("Cannot read example dataset: {error}"))
 	};
 }
 
@@ -46,7 +46,7 @@ fn append_dataset() -> Result<()> {
 fn read_header() -> Result<()> {
 	let header = Header::read_from_path(EXAMPLE_PATH)?;
 
-	assert!(header.version.is_compatible_with(Version::current()));
+	assert_eq!(header.version, Version::V0);
 	assert_eq!(header.bit_depth, 24);
 	assert_eq!(header.image_width, 52);
 	assert_eq!(header.image_height, 52);
