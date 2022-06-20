@@ -1,6 +1,6 @@
 # JDX Rust
 
-jdx-rust is a Rust wrapper library around libjdx, the low-level C library that manages JDX files directly. It can be used in any Rust project where you need to interact directly and conveniently with JDX files, and is actively used in the [JDX Command Line Tool](https://github.com/jeffreycshelton/jdx-clt).
+jdx-rust is a Rust library (now written purely in Rust!) for interacting with JDX files, making it easier to read, store, and modify large datasets of labeled images, primarily for machine learning tasks. It can be used in any Rust project where you need to interact directly and conveniently with JDX files, and it's actively used in the [JDX Command Line Tool](https://github.com/jeffreycshelton/jdx-clt).
 
 ## Usage
 
@@ -8,7 +8,7 @@ jdx-rust is not yet listed on [crates.io](https://crates.io), Rust's official cr
 
 ```toml
 [dependencies]
-jdx-rust = { git = "https://github.com/jeffreycshelton/jdx-rust", tag="v0.4.0" }
+jdx-rust = { git = "https://github.com/jeffreycshelton/jdx-rust", tag="v0.5.0" }
 ```
 
 ## Examples
