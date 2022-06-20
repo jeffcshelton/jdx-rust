@@ -95,7 +95,7 @@ impl Dataset {
 	}
 
 	#[inline]
-	pub fn header(&self) -> &Header {
+	pub fn get_header(&self) -> &Header {
 		&self.header
 	}
 
