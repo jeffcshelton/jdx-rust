@@ -21,6 +21,7 @@ pub type Label = u16;
 pub enum Error {
 	Io(io::ErrorKind),
 	CorruptFile,
+	UnrecognizedVersion(u8),
 	IncompatibleDimensions,
 
 	ClassLimitExceeded,
@@ -36,11 +37,12 @@ impl From<io::Error> for Error {
 impl fmt::Display for Error {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
-			Self::Io(error_kind) => write!(f, "Encountered IO error: {}.", error_kind),
+			Self::Io(error_kind) => write!(f, "Encountered IO error: {error_kind}."),
 			Self::CorruptFile => write!(f, "Failed to parse corrupted file."),
+			Self::UnrecognizedVersion(ver) => write!(f, "Unrecognized version number: '{ver}'. An update may be required to read this file."),
 			Self::IncompatibleDimensions => write!(f, "Failed to merge due to incompatible dimensions."),
-			Self::ClassLimitExceeded => write!(f, "The number of classes in a dataset cannot exceed 65,535"),
-			Self::ClassLengthLimitExceeded => write!(f, "The number of bytes in a class name cannot exceed 65,534"),
+			Self::ClassLimitExceeded => write!(f, "The number of classes in a dataset cannot exceed 65,535."),
+			Self::ClassLengthLimitExceeded => write!(f, "The number of bytes in a class name cannot exceed 65,534."),
 		}
 	}
 }

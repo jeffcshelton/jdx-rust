@@ -64,7 +64,7 @@ impl Dataset {
 			.collect();
 
 		for &(_, label) in &images {
-			if usize::from(label) > header.labels.len() {
+			if usize::from(label) > header.classes.len() {
 				return Err(Error::CorruptFile);
 			}
 		}
@@ -95,7 +95,7 @@ impl Dataset {
 	}
 
 	#[inline]
-	pub fn header(&self) -> &Header {
+	pub fn get_header(&self) -> &Header {
 		&self.header
 	}
 
@@ -114,7 +114,7 @@ impl Dataset {
 			return Err(Error::IncompatibleDimensions);
 		}
 
-		let other_labels = other.header.labels.clone();
+		let other_classes = other.header.classes.clone();
 		let mut label_map = HashMap::<u16, u16>::new();
 
 		// This loop merges labels in the 'other' Dataset into self
@@ -122,23 +122,23 @@ impl Dataset {
 			if let Some(mapped_label) = label_map.get(image_label) {
 				*image_label = *mapped_label;
 			} else {
-				let label_str = other_labels
+				let class_name = other_classes
 					.get(usize::from(*image_label))
 					.unwrap();
 
-				let mapped_label = self.header.labels
+				let mapped_label = self.header.classes
 					.iter()
-					.position(|s| s == label_str)
+					.position(|s| s == class_name)
 					.unwrap_or_else(|| {
-						self.header.labels.push(label_str.to_owned());
-						self.header.labels.len() - 1
+						self.header.classes.push(class_name.to_owned());
+						self.header.classes.len() - 1
 					});
 
 				if let Ok(mapped_label) = u16::try_from(mapped_label) {
 					label_map.insert(*image_label, mapped_label);
 					*image_label = mapped_label;
 				} else {
-					self.header.labels.pop();
+					self.header.classes.pop();
 					return Err(Error::ClassLimitExceeded);
 				}
 			}
@@ -161,19 +161,19 @@ impl Dataset {
 			return Err(Error::ClassLengthLimitExceeded);
 		}
 
-		let mapped_label = self.header.labels
+		let mapped_label = self.header.classes
 			.iter()
 			.position(|s| s == class_name)
 			.unwrap_or_else(|| {
-				self.header.labels.push(class_name.to_owned());
-				self.header.labels.len() - 1
+				self.header.classes.push(class_name.to_owned());
+				self.header.classes.len() - 1
 			});
 
 		if let Ok(mapped_label) = u16::try_from(mapped_label) {
 			self.header.image_count += 1;
 			self.images.push((raw_image, mapped_label));
 		} else {
-			self.header.labels.pop();
+			self.header.classes.pop();
 			return Err(Error::ClassLimitExceeded);
 		}
 
